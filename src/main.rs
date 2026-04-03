@@ -1,9 +1,11 @@
 use clap::{Parser, Subcommand};
 use directories::BaseDirs;
 use fs_extra::dir::{CopyOptions, copy};
+use minijinja::{Environment, context};
 use serde::Deserialize;
 use std::env;
 use std::path::PathBuf;
+use walkdir::WalkDir;
 
 type AppResult<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -48,7 +50,7 @@ fn get_config_dir() -> PathBuf {
     config_path
 }
 
-fn copy_template(source: &PathBuf, target: &PathBuf) -> AppResult<()> {
+fn copy_source_to_target(source: &PathBuf, target: &PathBuf) -> AppResult<()> {
     let mut options = CopyOptions::new();
     options.content_only = true;
 
@@ -108,7 +110,7 @@ fn setup_git(target: &PathBuf) -> AppResult<()> {
     Ok(())
 }
 
-fn parse_template(source: &PathBuf) -> AppResult<(TemplateType, String)> {
+fn parse_plato_toml(source: &PathBuf) -> AppResult<(TemplateType, String)> {
     let toml_path = source.join("plato.toml");
     if !toml_path.exists() {
         return Err(format!("Missing plato.toml in {:?}", source).into());
@@ -128,6 +130,47 @@ fn parse_template(source: &PathBuf) -> AppResult<(TemplateType, String)> {
     Ok((ttype, version))
 }
 
+fn is_template(ext: &str) -> bool {
+    matches!(ext, "j2" | "mj")
+}
+
+fn render_template<'source>(
+    env: &Environment<'source>,
+    path: &std::path::Path,
+    project_name: &str,
+    version: &str,
+) -> AppResult<()> {
+    let content = std::fs::read_to_string(path)?;
+    let new_path = path.with_extension("");
+    let rendered = env.render_str(
+        &content,
+        context!(
+            project_name => project_name,
+            version => version,
+        ),
+    )?;
+    std::fs::write(&new_path, rendered)?;
+    std::fs::remove_file(path)?;
+    Ok(())
+}
+
+fn process_templates(project_name: &str, target: &PathBuf, version: &str) -> AppResult<()> {
+    let env = Environment::new();
+    for entry in WalkDir::new(target)
+        .into_iter()
+        .filter_map(|result| result.ok())
+    {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        if is_template(path.extension().and_then(|r| r.to_str()).unwrap_or("")) {
+            render_template(&env, path, project_name, version)?;
+        }
+    }
+    Ok(())
+}
+
 fn main() -> AppResult<()> {
     let cli = Cli::parse();
     let pwd = env::current_dir()?;
@@ -139,8 +182,9 @@ fn main() -> AppResult<()> {
         } => {
             let target = pwd.join(project_name);
             let source = get_config_dir().join(template);
-            let (ttype, version) = parse_template(&source)?;
-            copy_template(&source, &target)?;
+            let (ttype, version) = parse_plato_toml(&source)?;
+            copy_source_to_target(&source, &target)?;
+            process_templates(project_name, &target, &version)?;
             setup_workspace(ttype, &version, &target)?;
             setup_git(&target)?;
             Ok(())
