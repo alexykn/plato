@@ -1,13 +1,12 @@
+use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use directories::BaseDirs;
 use fs_extra::dir::{CopyOptions, copy};
 use minijinja::{Environment, context};
 use serde::Deserialize;
-use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::{env, fs, process};
 use walkdir::WalkDir;
-
-type AppResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 /// Plato: A cool project templating tool
 #[derive(Parser, Debug)]
@@ -50,51 +49,50 @@ fn get_config_dir() -> PathBuf {
     config_path
 }
 
-fn copy_source_to_target(source: &PathBuf, target: &PathBuf) -> AppResult<()> {
+fn copy_source_to_target(source: &PathBuf, target: &PathBuf) -> Result<()> {
     let mut options = CopyOptions::new();
     options.content_only = true;
 
-    std::fs::create_dir_all(&target)?;
+    fs::create_dir_all(&target)?;
     copy(&source, &target, &options)?;
 
     let config_file = target.join("plato.toml");
     if config_file.exists() {
-        std::fs::remove_file(config_file)?;
+        fs::remove_file(config_file)?;
     }
     Ok(())
 }
 
 fn is_installed(cmd: &str) -> bool {
-    match std::process::Command::new(cmd).arg("--help").output() {
+    match process::Command::new(cmd).arg("--help").output() {
         Ok(_) => true,
         Err(_) => false,
     }
 }
 
-fn setup_python(version: &str, target: &PathBuf) -> AppResult<()> {
+fn setup_python(version: &str, target: &PathBuf) -> Result<()> {
     if is_installed("uv") {
-        std::process::Command::new("uv")
+        process::Command::new("uv")
             .args(["venv", "--python", version])
             .current_dir(&target)
             .status()?;
         Ok(())
     } else if is_installed("python") {
         let cmd = format!("python{}", version);
-        std::process::Command::new(cmd)
+        process::Command::new(cmd)
             .args(["-m", "venv", ".venv"])
             .current_dir(&target)
             .status()?;
         Ok(())
     } else {
-        return Err(format!(
+        bail!(
             "Neither 'uv' nor 'python{}' was found on your system. Aborting.",
             version
-        )
-        .into());
+        );
     }
 }
 
-fn setup_workspace(ttype: TemplateType, version: &String, target: &PathBuf) -> AppResult<()> {
+fn setup_workspace(ttype: TemplateType, version: &String, target: &PathBuf) -> Result<()> {
     match ttype {
         TemplateType::Python => setup_python(version, target)?,
         TemplateType::Rust => println!("Not Implemented!"),
@@ -102,27 +100,30 @@ fn setup_workspace(ttype: TemplateType, version: &String, target: &PathBuf) -> A
     Ok(())
 }
 
-fn setup_git(target: &PathBuf) -> AppResult<()> {
-    std::process::Command::new("git")
+fn setup_git(target: &PathBuf) -> Result<()> {
+    process::Command::new("git")
         .arg("init")
         .current_dir(&target)
         .status()?;
     Ok(())
 }
 
-fn parse_plato_toml(source: &PathBuf) -> AppResult<(TemplateType, String)> {
+fn parse_plato_toml(source: &PathBuf) -> Result<(TemplateType, String)> {
     let toml_path = source.join("plato.toml");
     if !toml_path.exists() {
-        return Err(format!("Missing plato.toml in {:?}", source).into());
+        bail!("Missing plato.toml in {:?}", source);
     }
 
-    let content = std::fs::read_to_string(toml_path)?;
-    let config: PlatoToml = toml::from_str(&content)?;
+    let content = fs::read_to_string(&toml_path)
+        .context(format!("Could not read plato toml at {:?}", toml_path))?;
+
+    let config: PlatoToml = toml::from_str(&content)
+        .context(format!("Invalid format in plato toml at {:?}", toml_path))?;
 
     let ttype = match config.ttype.to_lowercase().as_str() {
         "python" | "py" => TemplateType::Python,
         "rust" | "rs" => TemplateType::Rust,
-        _ => return Err(format!("Unknown template_type in toml: {}", config.ttype).into()),
+        _ => bail!("Unknown template_type in toml: {}", config.ttype),
     };
 
     let version = config.version.unwrap_or_else(|| String::from("latest"));
@@ -136,11 +137,11 @@ fn is_template(ext: &str) -> bool {
 
 fn render_template<'source>(
     env: &Environment<'source>,
-    path: &std::path::Path,
+    path: &Path,
     project_name: &str,
     version: &str,
-) -> AppResult<()> {
-    let content = std::fs::read_to_string(path)?;
+) -> Result<()> {
+    let content = fs::read_to_string(path)?;
     let new_path = path.with_extension("");
     let rendered = env.render_str(
         &content,
@@ -149,12 +150,12 @@ fn render_template<'source>(
             version => version,
         ),
     )?;
-    std::fs::write(&new_path, rendered)?;
-    std::fs::remove_file(path)?;
+    fs::write(&new_path, rendered)?;
+    fs::remove_file(path)?;
     Ok(())
 }
 
-fn process_templates(project_name: &str, target: &PathBuf, version: &str) -> AppResult<()> {
+fn process_templates(project_name: &str, target: &PathBuf, version: &str) -> Result<()> {
     let env = Environment::new();
     for entry in WalkDir::new(target)
         .into_iter()
@@ -171,7 +172,7 @@ fn process_templates(project_name: &str, target: &PathBuf, version: &str) -> App
     Ok(())
 }
 
-fn main() -> AppResult<()> {
+fn main() -> Result<()> {
     let cli = Cli::parse();
     let pwd = env::current_dir()?;
 
