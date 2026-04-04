@@ -1,181 +1,153 @@
 # AGENTS.md
 
-Default rules for working in this repository. These apply to all languages and components unless a task or language-specific section explicitly overrides them.
+These defaults apply across the repository unless a task or language-specific section overrides them.  
+If a task explicitly asks for something else, follow the task and note the deviation.
 
-If a task explicitly asks for something else, follow the task but note the deviation.
-
-## Subagent Usage (Plan & Build)
-
-- Primary agents for planning and implementation must use built-in subagents for efficiency and context hygiene.
-- Use `@explore` for codebase exploration, file discovery, pattern matching, grep-like searches, and "where is X?" questions. Prefer it over manual file reads when possible.
-- Use `@general` for complex research, multi-step analysis, external knowledge, or open-ended reasoning that would otherwise bloat the primary context.
-- Delegate early and often: before any non-trivial plan, ask `@explore` to gather relevant context.
-- When planning needs deep research or external reasoning, delegate to `@general`.
-- During implementation, use `@explore` again for targeted verification before editing when it will reduce primary-agent context.
-- Do not duplicate subagent work in the primary agent. Delegate first, then incorporate the result.
-
-## Core Principles
-
-- Preserve existing behavior unless the task explicitly requires a change.
-- Make the smallest correct change possible unless the task explicitly asks for something else.
-- Prefer composition and explicit dependency injection over other patterns.
-- Keep code readable and maintainable for both humans and future agents.
-- Flatten control flow; avoid deep nesting.
-- Separate pure logic from I/O and side effects.
-- Never modify unrelated files, reformat out-of-scope code, or update dependencies unless the task requires it.
-
-## Workflow & Verification
-
-### Verification
-
-- Prefer single-file checks when they are sufficient and faster.
-- Run the full test and lint suite only when explicitly requested or before marking the task complete.
-
-## Boundaries
+## Global Rules
 
 ### Always
-
-- Run the relevant linter and type checker on changed files before finishing.
 - Preserve existing behavior unless the task explicitly requires a change.
+- Make the smallest correct change possible unless the task explicitly requires more.
+- Run the relevant linter and type checker on changed files before finishing.
 
 ### Ask First
-
 - Adding new third-party dependencies.
-- Changes that touch multiple files or public APIs.
-- Any modification to `AGENTS.md` itself.
+- Changes touching multiple files or public APIs.
+- Any modification to `AGENTS.md`.
 
 ### Never
-
-- Rewrite or reformat code outside the explicit scope of the task.
+- Modify unrelated files.
+- Rewrite/reformat code outside explicit scope.
+- Update dependencies unless required by the task.
 - Add tests unless explicitly asked.
 - Swallow exceptions or add silent error handling.
 
-## 1. Logic & Control Flow
+## Core Principles
+
+- Prefer composition and explicit dependency injection.
+- Keep code readable and maintainable for humans and future agents.
+- Flatten control flow; avoid deep nesting.
+- Separate pure logic from I/O and side effects.
+
+## Workflow & Verification
+
+- Prefer single-file checks when sufficient and faster.
+- Run the full test/lint suite only when explicitly requested or before marking the task complete.
+- If tests already exist, run the relevant suite before coding to establish a baseline and after coding to catch regressions.
+- Ensure code passes all currently present tests.
+
+## Logic & Control Flow
 
 ### Do
+- Flatten control flow: prefer at most 2 levels of nesting, 3 absolute max. Do not count function/method declarations or equivalent structural blocks toward nesting depth.
+- Use guard clauses and fail fast.
+- Invert conditions when it improves readability.
+- Evaluate specific cases first; leave default behavior at the bottom.
+- Extract small helpers when they meaningfully flatten the main path.
 
-- Flatten control flow (prefer max 2 levels of nesting, 3 absolute max). Do not count `def`/`try`/`while`/`async with` toward nesting depth.
-- Use guard clauses and fail-fast early in functions.
-- Invert conditions to avoid nested branching when it improves readability.
-- Evaluate specific cases first, leave default behavior at the bottom.
-- Extract small helpers if they meaningfully flatten the main path.
-
-### Don't
-
-- Bury logic in deep `if/else` trees.
-- Use `else` when an early return/continue/break would keep the code flatter.
+### Don’t
+- Bury logic in deep conditional trees.
+- Use trailing `else` branches when an early return/continue/break keeps code flatter.
 - Trade readability for cleverness.
 
-## 2. Architecture & Design
+## Architecture & Design
 
 ### Do
-
 - Prefer the smallest correct change.
-- Avoid long parameter lists; if a function needs more than 3-4 arguments, group related parameters into logical structures.
-- Prefer strongly typed objects over massive dictionaries when passing complex state.
-- Use composition + explicit constructor injection (especially for orchestration/coordinating layers).
-- Use ABCs and `abstractmethod` when components need to be swappable.
-- Split files, classes, or functions before they violate single responsibility.
-- Keep modules and files tightly scoped and cohesive.
-- Keep pure logic separate from network, file I/O, and other side effects.
+- Avoid long parameter lists; if a function/method needs more than 3–4 arguments, group related inputs into logical structures.
+- Prefer explicit domain models, typed structures, or well-defined data containers over massive unstructured maps/objects.
+- Use composition + explicit constructor or parameter injection, especially in orchestration/coordinating layers.
+- Use interfaces, abstract base types, or equivalent language-native contract mechanisms when components need to be swappable.
+- Split files, classes, modules, or functions before they violate single responsibility.
+- Keep modules/files tightly scoped and cohesive.
+- Keep pure logic separate from network, file I/O, database access, and other side effects.
+- Extract and reorganize instead of blindly appending to growing structures.
 
-### Don't
-
+### Don’t
 - Add abstraction layers unless they clearly reduce real complexity.
 - Build deep inheritance hierarchies.
-- Create god classes, god files, or god functions.
+- Create god classes, god files, god modules, or god functions.
 - Introduce DI containers or service locators without a clear, justified need.
-- Don't blindly append new code to existing structures; extract and reorganize instead of letting them grow indefinitely.
 
-## 3. Type System & Documentation
+## Types, Contracts & Documentation
 
 ### Do
-
-- Prefer modern native annotations (`list[str]`, `dict[str, int]`, `X | Y`, etc.).
-- Use `Protocol`, `TypedDict`, `TypeVar`, or `Any` only when they add clear value.
-- Use generics when they add real value, especially for interchangeable injectable components and DTOs.
-- Add precise type hints on public interfaces and non-trivial variables.
-- Write concise docstrings for public APIs when they clarify intent, side effects, or invariants.
+- Prefer the language’s modern native type/contract features where available.
+- Use generic/advanced typing features only when they add clear value.
+- Model complex state with explicit, well-defined structures instead of anonymous bags of data.
+- Add precise type annotations, interface definitions, or equivalent contracts on public APIs and non-trivial values where the language/tooling supports them.
+- Write concise docstrings/comments/docs for public APIs when they clarify intent, side effects, or invariants.
 - Add comments explaining why for complex or non-obvious decisions.
 
-### Don't
+### Don’t
+- Overuse generics, indirection, or type machinery without clear payoff.
+- Use weakly structured catch-all types for data that has a real schema.
 
-- Overuse generics or indirection unless they demonstrably pay for themselves.
-- Use `Any` for structured data.
-
-## 4. Reliability, I/O & Errors
+## Reliability, I/O & Errors
 
 ### Do
-
 - Validate inputs at boundaries.
 - Make failure modes explicit and fail fast.
 - Use explicit timeouts on network/external calls.
 - Clean up resources deterministically.
-- Add contextual logging at key boundaries and failure points (never log secrets, keys, or PII).
+- Add contextual logging at key boundaries and failure points; never log secrets, keys, or PII.
 - Handle transient failures gracefully with retries only when appropriate.
 
-### Don't
+### Don’t
+- Swallow exceptions/errors silently.
+- Block async runtimes, event loops, or latency-sensitive execution paths with avoidable sync I/O or heavy CPU work.
 
-- Swallow exceptions silently.
-- Block the main thread or async event loop with sync I/O or heavy CPU work.
-
-## 5. Dependencies & Environment
+## Dependencies & Environment
 
 ### Do
-
-- Inject configuration and secrets via environment variables or config files (never hardcode).
-- Prefer standard library solutions when they are sufficient.
+- Inject configuration and secrets via environment variables or config files; never hardcode them.
+- Prefer standard library or built-in solutions when sufficient.
 - Use established ecosystem standards when they clearly reduce boilerplate or improve maintainability.
-- Add a third-party dependency only when it provides clear, ongoing value in maintainability or functionality.
+- Add third-party dependencies only when they provide clear, ongoing value in maintainability or functionality.
 
-### Don't
-
+### Don’t
 - Add dependencies just because they are popular or convenient.
 
-## 6. Testing & Maintenance
+## Testing & Maintenance
 
 ### Do
+- When explicitly asked to write tests, target only complex, high-risk logic.
+- Plan tests as a distinct, separate step.
+- Mock external dependencies and I/O in tests.
+- Test pure logic where possible.
 
-- If tests already exist, run the relevant suite before you start coding (to establish a baseline and catch pre-existing breakages) and after (to ensure no regressions).
-- Ensure your code passes all currently present tests.
-- When explicitly asked to write tests, target only the complex, high-risk logic. Plan them out and treat them as a distinct, separate step.
-- Mock external dependencies and I/O in tests; test pure logic where possible.
-
-### Don't
-
-- Don't write new tests unless explicitly asked to do so by the user.
-- Don't pester the user about missing tests or test coverage.
-- Don't practice implicit Test-Driven Development (TDD) or bundle haphazardly written tests alongside feature code.
-- Don't refactor purely for aesthetics.
-- Don't change behavior silently.
-- Don't modify files outside the explicit scope of the task.
+### Don’t
+- Write new tests unless explicitly asked.
+- Pester the user about missing tests or coverage.
+- Practice implicit TDD or bundle haphazard tests with feature code.
+- Refactor purely for aesthetics.
+- Change behavior silently.
+- Modify files outside the explicit scope of the task.
 
 ## Python
 
 ### Setup & Commands
-
 - Use `uv` exclusively for dependency and environment management.
 - Manage configuration strictly via `pyproject.toml`.
-- Always work inside `.venv`; create it with `uv venv` if it is missing.
+- Always work inside `.venv`; create it with `uv venv` if missing.
 - Sync dependencies with `uv sync`.
-- Run the linter and formatter with `uv run ruff check --fix` and `uv run ruff format`.
+- Run lint/auto-fix with `uv run ruff check --fix`.
+- Run formatter with `uv run ruff format`.
 - Type-check with `uv run ty check`.
 - Use `pytest` for all test suites.
 
 ### Syntax & Patterns
-
 - Rely on modern Python 3.12+ features.
-- Prefer native type annotations (`list[str]`, `dict[str, Any]`, `X | Y`) over the legacy `typing` module unless constrained by an older codebase.
-- Use `@dataclass` or Pydantic to encapsulate related data and execution contexts instead of creating functions with massive signatures.
+- Prefer native annotations (`list[str]`, `dict[str, int]`, `X | Y`) over legacy `typing` forms when possible.
+- Prefer `ABC` and `@abstractmethod` for swappable components and explicit contracts.
+- Use `@dataclass` or Pydantic to encapsulate related data/execution contexts instead of functions with massive signatures.
 
-### Don't
-
-- Use the legacy `typing` module when native annotations are sufficient.
+### Don’t
+- Use legacy `typing` forms when native annotations are sufficient.
+- Prefer `Protocol` over `ABC` unless structural typing is explicitly needed.
 
 ## Rust
-
 To be added.
 
 ## Frontend
-
 To be added.
