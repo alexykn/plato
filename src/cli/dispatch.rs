@@ -87,7 +87,6 @@ struct PyProject {
 
 #[derive(Deserialize, Debug)]
 struct ProjectTable {
-    _name: String,
     dependencies: Option<Vec<String>>,
 }
 
@@ -117,11 +116,11 @@ fn get_python_project_scope(target: &Path, project_name: &str) -> ProjectScope {
     }
 }
 
-fn get_python_manager() -> PythonPackageManager {
+fn get_python_manager(version: &str) -> PythonPackageManager {
     if is_installed("uv") {
         return PythonPackageManager::Uv;
     }
-    if is_installed("python") {
+    if is_installed(&format!("python{version}").to_string()) {
         return PythonPackageManager::Pip;
     }
     PythonPackageManager::None
@@ -182,8 +181,10 @@ fn parse_pyproject(pyproject_path: &Path) -> Result<PyProject> {
     if !pyproject_path.exists() {
         bail!("This shoud not have happened, how did we get here?!")
     }
-    let content = fs::read_to_string(pyproject_path)
-        .context(format!("Could not pyproject toml at {}", pyproject_path.display()))?;
+    let content = fs::read_to_string(pyproject_path).context(format!(
+        "Could not pyproject toml at {}",
+        pyproject_path.display()
+    ))?;
     let pyrproject: PyProject = toml::from_str(&content)?;
     Ok(pyrproject)
 }
@@ -277,11 +278,15 @@ fn parse_plato_toml(source: &Path) -> Result<(TemplateType, String)> {
         bail!("Missing plato.toml in {}", source.display());
     }
 
-    let content = fs::read_to_string(&toml_path)
-        .context(format!("Could not read plato toml at {}", toml_path.display()))?;
+    let content = fs::read_to_string(&toml_path).context(format!(
+        "Could not read plato toml at {}",
+        toml_path.display()
+    ))?;
 
-    let config: PlatoToml = toml::from_str(&content)
-        .context(format!("Invalid format in plato toml at {}", toml_path.display()))?;
+    let config: PlatoToml = toml::from_str(&content).context(format!(
+        "Invalid format in plato toml at {}",
+        toml_path.display()
+    ))?;
 
     let ttype = match config.ttype.to_lowercase().as_str() {
         "python" | "py" => TemplateType::Python,
@@ -363,7 +368,10 @@ fn build_target_map(
 fn scan_source_map(source: &Path) -> Result<HashMap<PathBuf, FileContent>> {
     let mut raw_map = HashMap::new();
 
-    for entry in WalkDir::new(source).into_iter().filter_map(std::result::Result::ok) {
+    for entry in WalkDir::new(source)
+        .into_iter()
+        .filter_map(std::result::Result::ok)
+    {
         let path = entry.path();
         let rel_path = path.strip_prefix(source)?.to_path_buf();
 
@@ -435,7 +443,7 @@ fn setup_base_workspace(
 
 fn setup_python_workspace(project_name: &str, version: &str, target: &Path) -> Result<()> {
     let scope = get_python_project_scope(target, project_name);
-    match get_python_manager() {
+    match get_python_manager(version) {
         PythonPackageManager::Uv => setup_uv_project(version, target, scope),
         PythonPackageManager::Pip => setup_pip_project(version, target, scope),
         PythonPackageManager::None => {
