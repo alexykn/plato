@@ -39,8 +39,8 @@ pub fn run(options: &RunOptions) -> Result<()> {
             setup_git(&options.target_path)
         }
         TemplateLanguage::Rust => {
-            setup_rust_workspace(&options.project_name, &options.config, &options.target_path)
             // we use cargo init to setup rust, no manual git setup needed.
+            setup_rust_workspace(&options.project_name, &options.config, &options.target_path)
         }
         TemplateLanguage::Base => {
             println!("No supported 'template_language' specified, setting up base workspace.");

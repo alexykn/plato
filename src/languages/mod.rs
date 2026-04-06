@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::path::Path;
 
-use crate::{core::config::Config, util::setup_git};
+use crate::core::config::Config;
 use python::{
     PythonPackageManager, get_python_manager, get_python_project_scope, setup_pip_project,
     setup_uv_project,
@@ -34,6 +34,5 @@ pub(crate) fn setup_python_workspace(
             Ok(())
         }
     }?;
-    setup_git(target)?;
     Ok(())
 }
