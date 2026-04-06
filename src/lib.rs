@@ -8,7 +8,7 @@ pub mod workspace;
 
 use crate::core::config::{Config, TemplateLanguage};
 use crate::core::guard::ProjectGuard;
-use crate::languages::{setup_python_workspace, setup_rust_workspace};
+use crate::languages::{LanguageSetup, PythonSetup, RustSetup, SetupContext};
 use crate::util::setup_git;
 use crate::workspace::setup_base_workspace;
 
@@ -27,26 +27,29 @@ pub struct RunOptions {
 /// template rendering, or project setup fails.
 pub fn run(options: &RunOptions) -> Result<()> {
     let mut guard = ProjectGuard::new(options.target_path.clone());
+    let mut should_setup_git: bool = options.config.plato.setup_git;
+    let ctx = SetupContext::from(options);
     setup_base_workspace(
         &options.project_name,
         &options.config,
         &options.source_path,
         &options.target_path,
     )?;
-    match options.config.plato.template_language {
-        TemplateLanguage::Python => {
-            setup_python_workspace(&options.project_name, &options.config, &options.target_path)?;
-            setup_git(&options.target_path)
-        }
+
+    match &options.config.plato.template_language {
+        TemplateLanguage::Python => PythonSetup.setup(ctx),
         TemplateLanguage::Rust => {
-            // we use cargo init to setup rust, no manual git setup needed.
-            setup_rust_workspace(&options.project_name, &options.config, &options.target_path)
+            should_setup_git = false; // we use cargo init to setup rust, no manual git setup needed.
+            RustSetup.setup(ctx)
         }
         TemplateLanguage::Base => {
             println!("No supported 'template_language' specified, setting up base workspace.");
-            setup_git(&options.target_path)
+            Ok(())
         }
     }?;
+    if should_setup_git {
+        setup_git(&options.target_path)?;
+    }
     guard.release();
     Ok(())
 }

@@ -9,7 +9,7 @@ static ALLOWED_CMD_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ProjectScope {
+pub enum ProjectScope {
     Requirements,
     Install,
     Base,

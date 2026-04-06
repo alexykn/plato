@@ -21,7 +21,7 @@ fn get_default_version() -> String {
     String::from("latest")
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 pub struct Config {
     #[serde(default)]
     pub plato: PlatoConfig,
@@ -29,15 +29,17 @@ pub struct Config {
     pub template: TemplateConfig,
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 pub struct PlatoConfig {
     #[serde(default)]
     pub template_language: TemplateLanguage,
     #[serde(default = "get_default_version")]
     pub language_version: String,
+    #[serde(default)]
+    pub setup_git: bool,
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 pub struct TemplateConfig {
     #[serde(default)]
     pub context: HashMap<String, String>,

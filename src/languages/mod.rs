@@ -1,38 +1,59 @@
 use anyhow::Result;
-use std::path::Path;
+use std::path::PathBuf;
 
-use crate::core::config::Config;
-use python::{
-    PythonPackageManager, get_python_manager, get_python_project_scope, setup_pip_project,
-    setup_uv_project,
+use crate::{RunOptions, core::config::Config};
+
+use crate::languages::python::{
+    PythonContext, PythonPackageManager, pip::PipPackageManager, shared::PythonPm,
+    uv::UvPackageManager,
 };
 
 pub mod python;
 pub mod rust;
 
-pub(crate) fn setup_rust_workspace(
-    _project_name: &str,
-    _config: &Config,
-    _target: &Path,
-) -> Result<()> {
-    Ok(())
+pub struct SetupContext {
+    pub project_name: String,
+    pub source_path: PathBuf,
+    pub target_path: PathBuf,
+    pub config: Config,
 }
 
-pub(crate) fn setup_python_workspace(
-    project_name: &str,
-    config: &Config,
-    target: &Path,
-) -> Result<()> {
-    let scope = get_python_project_scope(target, project_name);
-    match get_python_manager(&config.plato.language_version) {
-        PythonPackageManager::Uv => setup_uv_project(&config.plato.language_version, target, scope),
-        PythonPackageManager::Pip => {
-            setup_pip_project(&config.plato.language_version, target, scope)
+impl From<&RunOptions> for SetupContext {
+    fn from(options: &RunOptions) -> Self {
+        SetupContext {
+            project_name: options.project_name.clone(),
+            source_path: options.source_path.clone(),
+            target_path: options.target_path.clone(),
+            config: options.config.clone(),
         }
-        PythonPackageManager::None => {
-            eprintln!("No compatible python package manager found");
-            Ok(())
-        }
-    }?;
-    Ok(())
+    }
+}
+
+pub(crate) trait LanguageSetup {
+    fn setup(&self, ctx: SetupContext) -> Result<()>;
+}
+
+pub(crate) struct PythonSetup;
+
+impl LanguageSetup for PythonSetup {
+    fn setup(&self, ctx: SetupContext) -> Result<()> {
+        let ctx = PythonContext::try_from(ctx)?;
+        match ctx.package_manager {
+            PythonPm::Uv => UvPackageManager.setup(ctx),
+            PythonPm::Pip => PipPackageManager.setup(ctx),
+            PythonPm::None => {
+                eprintln!("No compatible python package manager found");
+                Ok(())
+            }
+        }?;
+        Ok(())
+    }
+}
+
+pub(crate) struct RustSetup;
+
+impl LanguageSetup for RustSetup {
+    fn setup(&self, _ctx: SetupContext) -> Result<()> {
+        Ok(())
+    }
 }
