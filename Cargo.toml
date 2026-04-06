@@ -5,7 +5,7 @@ edition = "2024"
 
 [[bin]]
 name = "plato"
-path = "src/bin/main.rs"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.102"
