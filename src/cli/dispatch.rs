@@ -157,7 +157,10 @@ fn execute_command(cmd: &str, args: &[&str], target: &Path) -> Result<()> {
 fn setup_uv_project(version: &str, target: &Path, scope: ProjectScope) -> Result<()> {
     execute_command("uv", &["venv", "--python", version], target)?;
     match scope {
-        ProjectScope::Install => execute_command("uv", &["sync"], target),
+        ProjectScope::Install => {
+            ensure_readme(target)?;
+            execute_command("uv", &["sync"], target)
+        }
         ProjectScope::Requirements => {
             execute_command("uv", &["sync", "--no-install-project"], target)
         }
@@ -211,6 +214,18 @@ fn requirements_from_pyproject(target: &Path) -> Result<Vec<String>> {
     Ok(requirements)
 }
 
+fn dev_groups_from_pyproject(target: &Path) -> Result<Vec<String>> {
+    let pyproject_path = target.join("pyproject.toml");
+    let pyproject = parse_pyproject(&pyproject_path)?;
+    let mut dev_groups: Vec<String> = Vec::new();
+    if let Some(group_deps) = pyproject.dependency_groups {
+        for (group, _) in group_deps {
+            dev_groups.push(group);
+        }
+    }
+    Ok(dev_groups)
+}
+
 fn ensure_requirements(target: &Path) -> Result<bool> {
     let req_file = target.join("requirements.txt");
     if !req_file.exists() {
@@ -230,35 +245,47 @@ fn ensure_requirements(target: &Path) -> Result<bool> {
     Ok(false)
 }
 
+fn pip_install_requirements(target: &Path) -> Result<()> {
+    let python_pip_exec = target.join(".venv/bin/python");
+    let requirements = match target.join("requirements.txt").exists() {
+        true => target.join("requirements.txt"),
+        false if ensure_requirements(target)? => target.join(".plato/requirements.txt"),
+        false => bail!("Could not find or generate requirements.txt"),
+    };
+    let python_pip_args = [
+        "-m",
+        "pip",
+        "install",
+        "-r",
+        &requirements.to_string_lossy(),
+    ];
+    execute_command(&python_pip_exec.to_string_lossy(), &python_pip_args, target)?;
+    Ok(())
+}
+
+fn pip_install_project(target: &Path) -> Result<()> {
+    let python_pip_exec = target.join(".venv/bin/python");
+    let mut python_pip_args = vec!["-m", "pip", "install", "-e", "."];
+    let dev_groups = dev_groups_from_pyproject(target)?;
+
+    for group in &dev_groups {
+        python_pip_args.push("--group");
+        python_pip_args.push(group);
+    }
+
+    ensure_readme(target)?;
+    execute_command(&python_pip_exec.to_string_lossy(), &python_pip_args, target)?;
+    Ok(())
+}
+
 fn setup_pip_project(version: &str, target: &Path, scope: ProjectScope) -> Result<()> {
     let python_command = format!("python{version}");
     let python_venv_args = ["-m", "venv", ".venv"];
     execute_command(&python_command, &python_venv_args, target)?;
 
-    let python_pip_exec = target.join(".venv/bin/python");
     match scope {
-        ProjectScope::Install => {
-            let python_pip_args = ["-m", "pip", "install", "-e", "."];
-            ensure_readme(target)?;
-            execute_command(&python_pip_exec.to_string_lossy(), &python_pip_args, target)?;
-            Ok(())
-        }
-        ProjectScope::Requirements => {
-            let requirements = match target.join("requirements.txt").exists() {
-                true => target.join("requirements.txt"),
-                false if ensure_requirements(target)? => target.join(".plato/requirements.txt"),
-                false => bail!("Could not find or generate requirements.txt"),
-            };
-            let python_pip_args = [
-                "-m",
-                "pip",
-                "install",
-                "-r",
-                &requirements.to_string_lossy(),
-            ];
-            execute_command(&python_pip_exec.to_string_lossy(), &python_pip_args, target)?;
-            Ok(())
-        }
+        ProjectScope::Install => pip_install_project(target),
+        ProjectScope::Requirements => pip_install_requirements(target),
         ProjectScope::Base => Ok::<(), anyhow::Error>(()),
     }?;
     Ok(())
@@ -454,7 +481,9 @@ fn setup_python_workspace(project_name: &str, version: &str, target: &Path) -> R
     Ok(())
 }
 
-fn setup_rust_workspace(_project_name: &str, _version: &str, _target: &Path) {}
+fn setup_rust_workspace(_project_name: &str, _version: &str, _target: &Path) -> Result<()> {
+    Ok(())
+}
 
 /// Run the CLI.
 ///
@@ -476,10 +505,7 @@ pub fn run() -> Result<()> {
             setup_base_workspace(project_name, &version, &source, &target)?;
             match ttype {
                 TemplateType::Python => setup_python_workspace(project_name, &version, &target),
-                TemplateType::Rust => {
-                    setup_rust_workspace(project_name, &version, &target);
-                    Ok(())
-                }
+                TemplateType::Rust => setup_rust_workspace(project_name, &version, &target),
                 TemplateType::Base => Ok(()),
             }?;
             setup_git(&target)?;
