@@ -102,6 +102,35 @@ struct UvTable {
     dev_dependencies: Option<Vec<String>>,
 }
 
+struct ProjectGuard {
+    path: PathBuf,
+    success: bool,
+}
+
+impl ProjectGuard {
+    fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            success: false,
+        }
+    }
+
+    fn release(&mut self) {
+        self.success = true
+    }
+}
+
+impl Drop for ProjectGuard {
+    fn drop(&mut self) {
+        if !self.success {
+            eprintln!("Project Setup did not finish. Cleaning up {:?}", self.path);
+            if self.path.exists() {
+                let _ = fs::remove_dir_all(&self.path);
+            }
+        }
+    }
+}
+
 fn get_python_project_scope(target: &Path, project_name: &str) -> ProjectScope {
     if target.join("pyproject.toml").exists()
         && target
@@ -499,8 +528,9 @@ pub fn run() -> Result<()> {
             template,
             project_name,
         } => {
-            let source = get_config_dir().join(template);
             let target = pwd.join(project_name);
+            let mut guard = ProjectGuard::new(target.clone());
+            let source = get_config_dir().join(template);
             let (ttype, version) = parse_plato_toml(&source)?;
             setup_base_workspace(project_name, &version, &source, &target)?;
             match ttype {
@@ -509,6 +539,7 @@ pub fn run() -> Result<()> {
                 TemplateType::Base => Ok(()),
             }?;
             setup_git(&target)?;
+            guard.release();
             Ok(())
         }
     }
