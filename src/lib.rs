@@ -9,6 +9,7 @@ pub mod workspace;
 use crate::core::config::{Config, TemplateLanguage};
 use crate::core::guard::ProjectGuard;
 use crate::languages::{setup_python_workspace, setup_rust_workspace};
+use crate::util::setup_git;
 use crate::workspace::setup_base_workspace;
 
 pub struct RunOptions {
@@ -34,12 +35,17 @@ pub fn run(options: &RunOptions) -> Result<()> {
     )?;
     match options.config.plato.template_language {
         TemplateLanguage::Python => {
-            setup_python_workspace(&options.project_name, &options.config, &options.target_path)
+            setup_python_workspace(&options.project_name, &options.config, &options.target_path)?;
+            setup_git(&options.target_path)
         }
         TemplateLanguage::Rust => {
             setup_rust_workspace(&options.project_name, &options.config, &options.target_path)
+            // we use cargo init to setup rust, no manual git setup needed.
         }
-        TemplateLanguage::Base => Ok(()),
+        TemplateLanguage::Base => {
+            println!("No supported 'template_language' specified, setting up base workspace.");
+            setup_git(&options.target_path)
+        }
     }?;
     guard.release();
     Ok(())
