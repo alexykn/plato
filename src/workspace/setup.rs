@@ -61,7 +61,7 @@ impl WorkspaceBuilder {
         Ok(Self { content: raw_map })
     }
 
-    pub(super) fn render_paths(self, context: &HashMap<&str, &str>) -> Result<Self> {
+    pub(super) fn render_paths(self, context: &HashMap<String, String>) -> Result<Self> {
         let mut target_map = HashMap::new();
         for (rel_path, content) in self.content {
             let mut path_str = rel_path.to_string_lossy().into_owned();

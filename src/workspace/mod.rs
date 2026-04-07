@@ -42,8 +42,13 @@ pub(crate) fn setup_base_workspace(
         custom_context: &config.template.context,
     };
 
+    let mut path_context = config.template.context.clone();
+    for (key, value) in &base_context {
+        path_context.insert((*key).to_string(), (*value).to_string());
+    }
+
     builder
-        .render_paths(&base_context)?
+        .render_paths(&path_context)?
         .render_templates(&template_context)?
         .flush_to_disk(target)?;
     Ok(())
