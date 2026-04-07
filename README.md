@@ -12,19 +12,21 @@ Current CLI:
 
 ```bash
 plato init <template_name> <project_name>
+plato config <template_name>
 ```
 
-Example:
+Examples:
 
 ```bash
 plato init py my-app
 plato init rs-bin hello-rust
+plato config py
 ```
 
 ---
 
 ## Project Structure & Module Organization
-- `src/main.rs`: CLI entrypoint. Parses `plato init <template> <project_name>`.
+- `src/main.rs`: CLI entrypoint. Parses `plato init <template> <project_name>` and `plato config <template>`.
 - `src/lib.rs`: Main orchestration entrypoint for rendering + language setup.
 - `src/core/config.rs`: `plato.toml` schema, defaults, and config loading.
 - `src/core/guard.rs`: Cleanup guard that removes the target directory on failure.
@@ -44,9 +46,10 @@ Template source location:
 ## Architecture & Setup Flow
 Execution flow:
 
-1. CLI parses `template_name` and `project_name`
+1. CLI parses either `template_name` + `project_name` for `init`, or just `template_name` for `config`
 2. Plato resolves the template source directory at `~/.config/plato/<template_name>`
-3. Plato loads `plato.toml`
+3. For `plato config`, Plato opens that template’s `plato.toml` in your editor
+4. Plato loads `plato.toml`
 4. Plato creates the target directory `./<project_name>`
 5. Plato scans the template directory
 6. Plato renders:
@@ -172,6 +175,10 @@ cargo_init = false           # default: false
 - `setup_git`
   - if `true`, Plato runs `git init` in the generated target
   - default is `false`
+
+### `plato config`
+- `plato config <template_name>` opens the template’s `plato.toml` in your editor
+- it prefers `$VISUAL`, then `$EDITOR`, then falls back to `nano`
 
 ### `[template.context]`
 Arbitrary string key-value pairs for path and content templates.
