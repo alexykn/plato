@@ -24,7 +24,10 @@ impl Drop for ProjectGuard {
             return;
         }
 
-        eprintln!("Project setup did not finish. Cleaning up {:?}", self.path);
+        eprintln!(
+            "Project setup did not finish. Cleaning up {}",
+            self.path.display()
+        );
         if self.path.exists() {
             let _ = fs::remove_dir_all(&self.path);
         }

@@ -58,6 +58,10 @@ pub struct TemplateConfig {
     pub context: HashMap<String, String>,
 }
 
+/// Returns the directory that stores Plato's configuration files.
+///
+/// # Panics
+/// Panics if the user's home directory cannot be determined.
 #[must_use]
 pub fn get_config_dir() -> PathBuf {
     let base_dirs = BaseDirs::new().expect("Could not find home directory");
@@ -67,6 +71,10 @@ pub fn get_config_dir() -> PathBuf {
     config_path
 }
 
+/// Loads `plato.toml` from the provided source directory.
+///
+/// # Errors
+/// Returns an error if the file is missing, unreadable, or invalid TOML.
 pub fn get_config(source: &Path) -> Result<Config> {
     let toml_path = source.join("plato.toml");
     if !toml_path.exists() {

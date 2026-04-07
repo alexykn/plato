@@ -18,18 +18,17 @@ impl PythonPackageManager for PipPackageManager {
         let python_venv_args = ["-m", "venv", ".venv"];
         execute_command(&python_command, &python_venv_args, &ctx.target_path)?;
 
-        use PythonProjectScope::*;
         match ctx.project_scope {
-            Install => self.pip_install_project(&ctx.target_path),
-            Requirements => self.pip_install_requirements(&ctx.target_path),
-            Base => Ok::<(), anyhow::Error>(()),
+            PythonProjectScope::Install => Self::pip_install_project(&ctx.target_path),
+            PythonProjectScope::Requirements => Self::pip_install_requirements(&ctx.target_path),
+            PythonProjectScope::Base => Ok::<(), anyhow::Error>(()),
         }?;
         Ok(())
     }
 }
 
 impl PipPackageManager {
-    fn pip_install_project(&self, target: &Path) -> Result<()> {
+    fn pip_install_project(target: &Path) -> Result<()> {
         let python_pip_exec = target.join(".venv/bin/python");
         let mut python_pip_args = vec!["-m", "pip", "install", "-e", "."];
         let dev_groups = dev_groups_from_pyproject(target)?;
@@ -44,7 +43,7 @@ impl PipPackageManager {
         Ok(())
     }
 
-    fn pip_install_requirements(&self, target: &Path) -> Result<()> {
+    fn pip_install_requirements(target: &Path) -> Result<()> {
         let python_pip_exec = target.join(".venv/bin/python");
         let requirements = match target.join("requirements.txt").exists() {
             true => target.join("requirements.txt"),

@@ -41,7 +41,7 @@ struct UvTable {
 }
 
 pub(crate) fn get_python_project_scope(target: &Path, project_name: &str) -> PythonProjectScope {
-    use PythonProjectScope::*;
+    use PythonProjectScope::{Base, Install, Requirements};
     if target.join("pyproject.toml").exists()
         && target
             .join(format!("src/{project_name}/__init__.py"))

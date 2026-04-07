@@ -30,7 +30,7 @@ impl TryFrom<SetupContext> for PythonContext {
     type Error = anyhow::Error;
 
     fn try_from(ctx: SetupContext) -> Result<Self, Self::Error> {
-        use ProjectScope::*;
+        use ProjectScope::{Auto, Base, Install, Requirements};
         let project_scope = match ctx.config.plato.project_scope {
             Auto => get_python_project_scope(&ctx.target_path, &ctx.project_name),
             Base => PythonProjectScope::Base,
