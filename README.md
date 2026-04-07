@@ -13,6 +13,7 @@ Current CLI:
 ```bash
 plato init <template_name> <project_name>
 plato config <template_name>
+plato list
 ```
 
 Examples:
@@ -21,12 +22,13 @@ Examples:
 plato init py my-app
 plato init rs-bin hello-rust
 plato config py
+plato list
 ```
 
 ---
 
 ## Project Structure & Module Organization
-- `src/main.rs`: CLI entrypoint. Parses `plato init <template> <project_name>` and `plato config <template>`.
+- `src/main.rs`: CLI entrypoint. Parses `plato init <template> <project_name>`, `plato config <template>`, and `plato list`.
 - `src/lib.rs`: Main orchestration entrypoint for rendering + language setup.
 - `src/core/config.rs`: `plato.toml` schema, defaults, and config loading.
 - `src/core/guard.rs`: Cleanup guard that removes the target directory on failure.
@@ -179,6 +181,9 @@ cargo_init = false           # default: false
 ### `plato config`
 - `plato config <template_name>` opens the template’s `plato.toml` in your editor
 - it prefers `$VISUAL`, then `$EDITOR`, then falls back to `nano`
+
+### `plato list`
+- `plato list` prints the available template directories from `~/.config/plato`
 
 ### `[template.context]`
 Arbitrary string key-value pairs for path and content templates.
