@@ -2,6 +2,7 @@ use anyhow::{Context, Result, bail};
 use regex::Regex;
 use std::env::var;
 use std::ffi::OsString;
+use std::fs::read_dir;
 use std::path::Path;
 use std::process::Command;
 use std::sync::LazyLock;
@@ -11,19 +12,23 @@ static ALLOWED_CMD_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 fn get_default_editor() -> OsString {
-    if let Ok(visual) = var("VISUAL") {
-        if !visual.trim().is_empty() {
-            return visual.into();
-        }
+    if let Ok(visual) = var("VISUAL")
+        && !visual.trim().is_empty()
+    {
+        return visual.into();
     }
-    if let Ok(editor) = var("EDITOR") {
-        if !editor.trim().is_empty() {
-            return editor.into();
-        }
+    if let Ok(editor) = var("EDITOR")
+        && !editor.trim().is_empty()
+    {
+        return editor.into();
     }
     "nano".into()
 }
 
+/// Opens the template's `plato.toml` in the user's editor.
+///
+/// # Errors
+/// Returns an error if the editor cannot be started or exits unsuccessfully.
 pub fn open_config_file(template_path: &Path) -> Result<()> {
     let config_file_path = template_path.join("plato.toml");
     let editor = get_default_editor();
@@ -34,6 +39,18 @@ pub fn open_config_file(template_path: &Path) -> Result<()> {
         bail!("Editor exited with non-zero exit code.")
     }
 
+    Ok(())
+}
+
+/// Lists the templates in the given Plato config directory.
+///
+/// # Errors
+/// Returns an error if the config directory cannot be read.
+pub fn list_templates(config_dir: &Path) -> Result<()> {
+    let templates: Vec<_> = read_dir(config_dir)?.filter_map(Result::ok).collect();
+    for template in templates {
+        println!(" - {}", template.file_name().to_string_lossy());
+    }
     Ok(())
 }
 

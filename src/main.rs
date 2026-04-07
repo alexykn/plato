@@ -3,7 +3,7 @@ use std::env;
 
 use plato::RunOptions;
 use plato::core::config::{get_config, get_config_dir};
-use plato::util::open_config_file;
+use plato::util::{list_templates, open_config_file};
 
 /// Plato: A cool project templating tool
 #[derive(Parser, Debug)]
@@ -29,6 +29,8 @@ enum Commands {
         /// The name of the template (e.g., py3.12)
         template_name: String,
     },
+    /// List all templates in the template folder
+    List,
 }
 
 fn main() {
@@ -61,6 +63,10 @@ fn try_run() -> anyhow::Result<()> {
         Commands::Config { template_name } => {
             let source_path = get_config_dir()?.join(&template_name);
             open_config_file(&source_path)
+        }
+        Commands::List => {
+            let config_dir = get_config_dir()?;
+            list_templates(&config_dir)
         }
     }
 }

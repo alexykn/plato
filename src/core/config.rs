@@ -119,9 +119,8 @@ pub struct RustConfig {
 
 /// Returns the directory that stores Plato's configuration files.
 ///
-/// # Panics
-/// Panics if the user's home directory cannot be determined.
-#[must_use]
+/// # Errors
+/// Returns an error if the user's home directory cannot be determined.
 pub fn get_config_dir() -> Result<PathBuf> {
     let base_dirs = BaseDirs::new().context("Could not find home directory")?;
     let mut config_path = base_dirs.home_dir().to_path_buf();
