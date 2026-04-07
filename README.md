@@ -2,8 +2,7 @@
 
 Plato is a local project scaffolding tool.
 
-I built this because I wanted a "one-shot" command to setup my projects in a state
-where I can just start coding and I want to learn Rust.
+I built this because I wanted a "one-shot" command to setup my projects in a state where I can just start coding.
 
 It reads templates from `~/.config/plato/<template_name>`, renders files into a new
 project directory, and then optionally performs language-specific setup for Python
