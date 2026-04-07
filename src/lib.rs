@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::path::PathBuf;
+use std::{fs::create_dir_all, path::PathBuf};
 
 pub mod core;
 pub mod languages;
@@ -27,8 +27,9 @@ pub struct RunOptions {
 /// template rendering, or project setup fails.
 pub fn run(options: &RunOptions) -> Result<()> {
     let mut guard = ProjectGuard::new(options.target_path.clone());
-    let mut should_setup_git: bool = options.config.plato.setup_git;
+    let should_setup_git: bool = options.config.plato.setup_git;
     let ctx = SetupContext::from(options);
+    create_dir_all(&options.target_path)?;
     setup_base_workspace(
         &options.project_name,
         &options.config,
@@ -38,10 +39,7 @@ pub fn run(options: &RunOptions) -> Result<()> {
 
     match &options.config.plato.template_language {
         TemplateLanguage::Python => PythonSetup.setup(ctx),
-        TemplateLanguage::Rust => {
-            should_setup_git = false; // we use cargo init to setup rust, no manual git setup needed.
-            RustSetup.setup(ctx)
-        }
+        TemplateLanguage::Rust => RustSetup.setup(ctx),
         TemplateLanguage::Base => Ok(()),
     }?;
     if should_setup_git {

@@ -1,6 +1,10 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
+use crate::languages::rust::RustPackageManagerSetup;
+use crate::languages::rust::{
+    RustPackageManager, RustSetupContext, cargo::CargoPackageManagerSetup,
+};
 use crate::{RunOptions, core::config::Config};
 
 use crate::languages::python::{
@@ -53,7 +57,14 @@ impl LanguageSetup for PythonSetup {
 pub(crate) struct RustSetup;
 
 impl LanguageSetup for RustSetup {
-    fn setup(&self, _ctx: SetupContext) -> Result<()> {
-        Ok(())
+    fn setup(&self, ctx: SetupContext) -> Result<()> {
+        let ctx = RustSetupContext::try_from(ctx)?;
+        match ctx.package_manager {
+            RustPackageManager::Cargo => CargoPackageManagerSetup.setup(ctx),
+            RustPackageManager::None => {
+                eprintln!("No compatible rust package manager found");
+                Ok(())
+            }
+        }
     }
 }

@@ -29,6 +29,17 @@ pub enum PythonProjectScopeConfig {
 #[derive(Debug, Clone, Copy, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum RustProjectScopeConfig {
+    Build,
+    Fetch,
+    Base,
+    #[default]
+    #[serde(other)]
+    Auto,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum RustProjectTypeConfig {
     #[serde(alias = "bin")]
     Binary,
     #[serde(alias = "lib")]
@@ -100,6 +111,10 @@ pub struct RustConfig {
     pub toolchain: String,
     #[serde(default)]
     pub project_scope: RustProjectScopeConfig,
+    #[serde(default)]
+    pub project_type: RustProjectTypeConfig,
+    #[serde(default)]
+    pub cargo_init: bool,
 }
 
 /// Returns the directory that stores Plato's configuration files.
