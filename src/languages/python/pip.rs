@@ -1,12 +1,12 @@
-use anyhow::{Result, bail};
+use anyhow::Result;
 use std::path::Path;
 
 use crate::{
     languages::python::{
-        PythonContext, PythonPackageManager,
+        PythonContext, PythonPackageManager, PythonProjectScope,
         shared::{dev_groups_from_pyproject, ensure_readme, ensure_requirements},
     },
-    util::{ProjectScope, execute_command},
+    util::execute_command,
 };
 
 pub(crate) struct PipPackageManager;
@@ -18,10 +18,11 @@ impl PythonPackageManager for PipPackageManager {
         let python_venv_args = ["-m", "venv", ".venv"];
         execute_command(&python_command, &python_venv_args, &ctx.target_path)?;
 
+        use PythonProjectScope::*;
         match ctx.project_scope {
-            ProjectScope::Install => self.pip_install_project(&ctx.target_path),
-            ProjectScope::Requirements => self.pip_install_requirements(&ctx.target_path),
-            ProjectScope::Base => Ok::<(), anyhow::Error>(()),
+            Install => self.pip_install_project(&ctx.target_path),
+            Requirements => self.pip_install_requirements(&ctx.target_path),
+            Base => Ok::<(), anyhow::Error>(()),
         }?;
         Ok(())
     }
@@ -48,7 +49,10 @@ impl PipPackageManager {
         let requirements = match target.join("requirements.txt").exists() {
             true => target.join("requirements.txt"),
             false if ensure_requirements(target)? => target.join(".plato/requirements.txt"),
-            false => bail!("Could not find or generate requirements.txt"),
+            false => {
+                println!("WARNING: Could not find or generate requirements.txt");
+                return Ok(());
+            }
         };
         let python_pip_args = [
             "-m",

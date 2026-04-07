@@ -1,4 +1,5 @@
-use crate::util::{ProjectScope, is_installed};
+use crate::languages::python::PythonProjectScope;
+use crate::util::is_installed;
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -39,17 +40,18 @@ struct UvTable {
     dev_dependencies: Option<Vec<String>>,
 }
 
-pub(crate) fn get_python_project_scope(target: &Path, project_name: &str) -> ProjectScope {
+pub(crate) fn get_python_project_scope(target: &Path, project_name: &str) -> PythonProjectScope {
+    use PythonProjectScope::*;
     if target.join("pyproject.toml").exists()
         && target
             .join(format!("src/{project_name}/__init__.py"))
             .exists()
     {
-        ProjectScope::Install
+        Install
     } else if target.join("pyproject.toml").exists() || target.join("requirements.txt").exists() {
-        ProjectScope::Requirements
+        Requirements
     } else {
-        ProjectScope::Base
+        Base
     }
 }
 

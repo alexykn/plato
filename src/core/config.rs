@@ -7,6 +7,17 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
+pub enum ProjectScope {
+    Requirements,
+    Install,
+    Base,
+    #[default]
+    #[serde(other)]
+    Auto,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
 pub enum TemplateLanguage {
     #[serde(alias = "py")]
     Python,
@@ -37,6 +48,8 @@ pub struct PlatoConfig {
     pub language_version: String,
     #[serde(default)]
     pub setup_git: bool,
+    #[serde(default)]
+    pub project_scope: ProjectScope,
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]

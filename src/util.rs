@@ -8,13 +8,6 @@ static ALLOWED_CMD_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(git|cargo|uv|python\d*(?:\.\d+)*)$").expect("Invalid regex pattern")
 });
 
-#[derive(Debug, Clone, Copy)]
-pub enum ProjectScope {
-    Requirements,
-    Install,
-    Base,
-}
-
 pub(crate) fn setup_git(target: &Path) -> Result<()> {
     execute_command("git", &["init"], target)?;
     Ok(())
