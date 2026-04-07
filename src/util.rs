@@ -47,9 +47,24 @@ pub fn open_config_file(template_path: &Path) -> Result<()> {
 /// # Errors
 /// Returns an error if the config directory cannot be read.
 pub fn list_templates(config_dir: &Path) -> Result<()> {
-    let templates: Vec<_> = read_dir(config_dir)?.filter_map(Result::ok).collect();
-    for template in templates {
-        println!(" - {}", template.file_name().to_string_lossy());
+    let templates: Vec<_> = read_dir(config_dir)?
+        .filter_map(Result::ok)
+        .map(|dir| {
+            let valid = dir.path().join("plato.toml").exists();
+            (dir, valid)
+        })
+        .collect();
+
+    let max_length = templates
+        .iter()
+        .map(|(dir, _)| dir.file_name().to_string_lossy().len())
+        .max()
+        .unwrap_or(0);
+
+    for (dir, is_valid) in templates {
+        let name = dir.file_name().to_string_lossy().into_owned();
+        let status = if is_valid { "ok" } else { "plato.toml missing" };
+        println!(" - {name:<max_length$} | {status}");
     }
     Ok(())
 }
