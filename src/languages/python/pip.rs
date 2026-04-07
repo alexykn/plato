@@ -3,17 +3,17 @@ use std::path::Path;
 
 use crate::{
     languages::python::{
-        PythonContext, PythonPackageManager, PythonProjectScope,
+        PythonPackageManagerSetup, PythonProjectScope, PythonSetupContext,
         shared::{dev_groups_from_pyproject, ensure_readme, ensure_requirements},
     },
     util::execute_command,
 };
 
-pub(crate) struct PipPackageManager;
+pub(crate) struct PipPackageManagerSetup;
 
-impl PythonPackageManager for PipPackageManager {
-    fn setup(&self, ctx: PythonContext) -> Result<()> {
-        let version = ctx.config.plato.language_version;
+impl PythonPackageManagerSetup for PipPackageManagerSetup {
+    fn setup(&self, ctx: PythonSetupContext) -> Result<()> {
+        let version = ctx.config.python.language_version;
         let python_command = format!("python{version}");
         let python_venv_args = ["-m", "venv", ".venv"];
         execute_command(&python_command, &python_venv_args, &ctx.target_path)?;
@@ -27,7 +27,7 @@ impl PythonPackageManager for PipPackageManager {
     }
 }
 
-impl PipPackageManager {
+impl PipPackageManagerSetup {
     fn pip_install_project(target: &Path) -> Result<()> {
         let python_pip_exec = target.join(".venv/bin/python");
         let mut python_pip_args = vec!["-m", "pip", "install", "-e", "."];

@@ -7,10 +7,32 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
-pub enum ProjectScope {
+pub enum PythonPackageManagerConfig {
+    Pip,
+    Uv,
+    #[default]
+    #[serde(other)]
+    Auto,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum PythonProjectScopeConfig {
     Requirements,
     Install,
     Base,
+    #[default]
+    #[serde(other)]
+    Auto,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum RustProjectScopeConfig {
+    #[serde(alias = "bin")]
+    Binary,
+    #[serde(alias = "lib")]
+    Library,
     #[default]
     #[serde(other)]
     Auto,
@@ -28,8 +50,12 @@ pub enum TemplateLanguage {
     Base,
 }
 
-fn get_default_version() -> String {
-    String::from("latest")
+fn get_default_python_version() -> String {
+    String::from("3")
+}
+
+fn get_default_rust_toolchain() -> String {
+    String::from("stable")
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]
@@ -38,24 +64,42 @@ pub struct Config {
     pub plato: PlatoConfig,
     #[serde(default)]
     pub template: TemplateConfig,
+    #[serde(default)]
+    pub python: PythonConfig,
+    #[serde(default)]
+    pub rust: RustConfig,
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]
 pub struct PlatoConfig {
     #[serde(default)]
     pub template_language: TemplateLanguage,
-    #[serde(default = "get_default_version")]
-    pub language_version: String,
     #[serde(default)]
     pub setup_git: bool,
-    #[serde(default)]
-    pub project_scope: ProjectScope,
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]
 pub struct TemplateConfig {
     #[serde(default)]
     pub context: HashMap<String, String>,
+}
+
+#[derive(Deserialize, Debug, Default, Clone)]
+pub struct PythonConfig {
+    #[serde(default = "get_default_python_version")]
+    pub language_version: String,
+    #[serde(default)]
+    pub package_manager: PythonPackageManagerConfig,
+    #[serde(default)]
+    pub project_scope: PythonProjectScopeConfig,
+}
+
+#[derive(Deserialize, Debug, Default, Clone)]
+pub struct RustConfig {
+    #[serde(default = "get_default_rust_toolchain")]
+    pub toolchain: String,
+    #[serde(default)]
+    pub project_scope: RustProjectScopeConfig,
 }
 
 /// Returns the directory that stores Plato's configuration files.

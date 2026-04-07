@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use crate::{RunOptions, core::config::Config};
 
 use crate::languages::python::{
-    PythonContext, PythonPackageManager, pip::PipPackageManager, shared::PythonPm,
-    uv::UvPackageManager,
+    PythonPackageManager, PythonPackageManagerSetup, PythonSetupContext,
+    pip::PipPackageManagerSetup, uv::UvPackageManagerSetup,
 };
 
 pub mod python;
@@ -37,11 +37,11 @@ pub(crate) struct PythonSetup;
 
 impl LanguageSetup for PythonSetup {
     fn setup(&self, ctx: SetupContext) -> Result<()> {
-        let ctx = PythonContext::try_from(ctx)?;
+        let ctx = PythonSetupContext::try_from(ctx)?;
         match ctx.package_manager {
-            PythonPm::Uv => UvPackageManager.setup(ctx),
-            PythonPm::Pip => PipPackageManager.setup(ctx),
-            PythonPm::None => {
+            PythonPackageManager::Uv => UvPackageManagerSetup.setup(ctx),
+            PythonPackageManager::Pip => PipPackageManagerSetup.setup(ctx),
+            PythonPackageManager::None => {
                 eprintln!("No compatible python package manager found");
                 Ok(())
             }

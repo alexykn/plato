@@ -71,10 +71,10 @@ fn render_templates(
 
 pub(super) fn build_target_map(
     raw_map: HashMap<PathBuf, FileContent>,
-    path_context: &HashMap<&str, &str>,
+    base_context: &HashMap<&str, &str>,
     template_context: &impl Serialize,
 ) -> Result<HashMap<PathBuf, FileContent>> {
-    let target_map = render_paths(raw_map, path_context);
+    let target_map = render_paths(raw_map, base_context);
     let rendered_map = render_templates(target_map, template_context)?;
     Ok(rendered_map)
 }

@@ -1,17 +1,10 @@
-use crate::languages::python::PythonProjectScope;
+use crate::languages::python::{PythonPackageManager, PythonProjectScope};
 use crate::util::is_installed;
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-
-#[derive(Debug, Clone, Copy)]
-pub enum PythonPm {
-    Pip,
-    Uv,
-    None,
-}
 
 #[derive(Deserialize, Debug)]
 pub(crate) struct PyProject {
@@ -55,14 +48,14 @@ pub(crate) fn get_python_project_scope(target: &Path, project_name: &str) -> Pyt
     }
 }
 
-pub(crate) fn get_python_manager(version: &str) -> PythonPm {
+pub(crate) fn get_python_package_manager(version: &str) -> PythonPackageManager {
     if is_installed("uv") {
-        return PythonPm::Uv;
+        return PythonPackageManager::Uv;
     }
     if is_installed(&format!("python{version}").to_string()) {
-        return PythonPm::Pip;
+        return PythonPackageManager::Pip;
     }
-    PythonPm::None
+    PythonPackageManager::None
 }
 
 pub(crate) fn parse_pyproject(pyproject_path: &Path) -> Result<PyProject> {

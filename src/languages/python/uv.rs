@@ -2,18 +2,18 @@ use anyhow::Result;
 
 use crate::{
     languages::python::{
-        PythonContext, PythonPackageManager, PythonProjectScope, shared::ensure_readme,
+        PythonPackageManagerSetup, PythonProjectScope, PythonSetupContext, shared::ensure_readme,
     },
     util::execute_command,
 };
 
-pub(crate) struct UvPackageManager;
+pub(crate) struct UvPackageManagerSetup;
 
-impl PythonPackageManager for UvPackageManager {
-    fn setup(&self, ctx: PythonContext) -> Result<()> {
+impl PythonPackageManagerSetup for UvPackageManagerSetup {
+    fn setup(&self, ctx: PythonSetupContext) -> Result<()> {
         execute_command(
             "uv",
-            &["venv", "--python", &ctx.config.plato.language_version],
+            &["venv", "--python", &ctx.config.python.language_version],
             &ctx.target_path,
         )?;
         match ctx.project_scope {

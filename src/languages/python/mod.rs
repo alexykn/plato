@@ -1,10 +1,13 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
-use crate::languages::python::shared::PythonPm;
-use crate::{core::config::Config, core::config::ProjectScope, languages::SetupContext};
+use crate::{
+    core::config::Config,
+    core::config::{PythonPackageManagerConfig, PythonProjectScopeConfig},
+    languages::SetupContext,
+};
 
-use self::shared::{get_python_manager, get_python_project_scope};
+use self::shared::{get_python_package_manager, get_python_project_scope};
 
 pub mod pip;
 pub mod shared;
@@ -17,27 +20,41 @@ pub enum PythonProjectScope {
     Base,
 }
 
-pub struct PythonContext {
+#[derive(Debug, Clone, Copy)]
+pub enum PythonPackageManager {
+    Pip,
+    Uv,
+    None,
+}
+
+pub struct PythonSetupContext {
     pub project_name: String,
     pub source_path: PathBuf,
     pub target_path: PathBuf,
     pub config: Config,
     pub project_scope: PythonProjectScope,
-    pub package_manager: PythonPm,
+    pub package_manager: PythonPackageManager,
 }
 
-impl TryFrom<SetupContext> for PythonContext {
+impl TryFrom<SetupContext> for PythonSetupContext {
     type Error = anyhow::Error;
 
     fn try_from(ctx: SetupContext) -> Result<Self, Self::Error> {
-        use ProjectScope::{Auto, Base, Install, Requirements};
-        let project_scope = match ctx.config.plato.project_scope {
-            Auto => get_python_project_scope(&ctx.target_path, &ctx.project_name),
-            Base => PythonProjectScope::Base,
-            Install => PythonProjectScope::Install,
-            Requirements => PythonProjectScope::Requirements,
+        let project_scope = match ctx.config.python.project_scope {
+            PythonProjectScopeConfig::Auto => {
+                get_python_project_scope(&ctx.target_path, &ctx.project_name)
+            }
+            PythonProjectScopeConfig::Base => PythonProjectScope::Base,
+            PythonProjectScopeConfig::Install => PythonProjectScope::Install,
+            PythonProjectScopeConfig::Requirements => PythonProjectScope::Requirements,
         };
-        let package_manager = get_python_manager(&ctx.config.plato.language_version);
+        let package_manager = match ctx.config.python.package_manager {
+            PythonPackageManagerConfig::Auto => {
+                get_python_package_manager(&ctx.config.python.language_version)
+            }
+            PythonPackageManagerConfig::Uv => PythonPackageManager::Uv,
+            PythonPackageManagerConfig::Pip => PythonPackageManager::Pip,
+        };
 
         Ok(Self {
             project_name: ctx.project_name,
@@ -50,6 +67,6 @@ impl TryFrom<SetupContext> for PythonContext {
     }
 }
 
-pub(crate) trait PythonPackageManager {
-    fn setup(&self, ctx: PythonContext) -> Result<()>;
+pub(crate) trait PythonPackageManagerSetup {
+    fn setup(&self, ctx: PythonSetupContext) -> Result<()>;
 }
