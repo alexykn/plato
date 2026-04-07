@@ -1,11 +1,11 @@
 use anyhow::Result;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::core::config::{Config, TemplateLanguage};
 
-use super::workspace::setup::{FileContent, build_target_map, flush_to_disk, scan_source_map};
+use super::workspace::setup::WorkspaceBuilder;
 
 pub mod setup;
 
@@ -22,8 +22,8 @@ pub(crate) fn setup_base_workspace(
     config: &Config,
     source: &Path,
     target: &Path,
-) -> Result<HashMap<PathBuf, FileContent>> {
-    let source_map = scan_source_map(source)?;
+) -> Result<()> {
+    let builder = WorkspaceBuilder::scan(source)?;
 
     let mut base_context: HashMap<&str, &str> = HashMap::new();
     base_context.insert("project_name", project_name);
@@ -42,7 +42,9 @@ pub(crate) fn setup_base_workspace(
         custom_context: &config.template.context,
     };
 
-    let target_map = build_target_map(source_map, &base_context, &template_context)?;
-    flush_to_disk(&target_map, target)?;
-    Ok(target_map)
+    builder
+        .render_paths(&base_context)?
+        .render_templates(&template_context)?
+        .flush_to_disk(target)?;
+    Ok(())
 }
