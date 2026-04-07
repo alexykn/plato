@@ -5,10 +5,6 @@ Plato is a local project scaffolding tool.
 I built this because I wanted a "one-shot" command to setup my projects in a state
 where I can just start coding and I want to learn Rust.
 
-This is 80% hand written and 20% AI mainly when Types or the Borrow Checker annoyed 
-me too much or I had to .as_ref().and_then(|x| x.y.as_ref()).is_some_and(|z| !z.is_empty())
-to get shit working.
-
 It reads templates from `~/.config/plato/<template_name>`, renders files into a new
 project directory, and then optionally performs language-specific setup for Python
 and Rust projects.
