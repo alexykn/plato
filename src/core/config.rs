@@ -122,12 +122,12 @@ pub struct RustConfig {
 /// # Panics
 /// Panics if the user's home directory cannot be determined.
 #[must_use]
-pub fn get_config_dir() -> PathBuf {
-    let base_dirs = BaseDirs::new().expect("Could not find home directory");
+pub fn get_config_dir() -> Result<PathBuf> {
+    let base_dirs = BaseDirs::new().context("Could not find home directory")?;
     let mut config_path = base_dirs.home_dir().to_path_buf();
     config_path.push(".config");
     config_path.push("plato");
-    config_path
+    Ok(config_path)
 }
 
 /// Loads `plato.toml` from the provided source directory.

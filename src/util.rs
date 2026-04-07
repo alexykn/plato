@@ -1,5 +1,7 @@
 use anyhow::{Context, Result, bail};
 use regex::Regex;
+use std::env::var;
+use std::ffi::OsString;
 use std::path::Path;
 use std::process::Command;
 use std::sync::LazyLock;
@@ -7,6 +9,33 @@ use std::sync::LazyLock;
 static ALLOWED_CMD_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(git|cargo|uv|python\d*(?:\.\d+)*)$").expect("Invalid regex pattern")
 });
+
+fn get_default_editor() -> OsString {
+    if let Ok(visual) = var("VISUAL") {
+        if !visual.trim().is_empty() {
+            return visual.into();
+        }
+    }
+    if let Ok(editor) = var("EDITOR") {
+        if !editor.trim().is_empty() {
+            return editor.into();
+        }
+    }
+    "nano".into()
+}
+
+pub fn open_config_file(template_path: &Path) -> Result<()> {
+    let config_file_path = template_path.join("plato.toml");
+    let editor = get_default_editor();
+
+    let mut child = Command::new(editor).arg(config_file_path).spawn()?;
+    let status = child.wait()?;
+    if !status.success() {
+        bail!("Editor exited with non-zero exit code.")
+    }
+
+    Ok(())
+}
 
 pub(crate) fn setup_git(target: &Path) -> Result<()> {
     execute_command("git", &["init"], target)?;

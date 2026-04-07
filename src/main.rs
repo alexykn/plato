@@ -3,6 +3,7 @@ use std::env;
 
 use plato::RunOptions;
 use plato::core::config::{get_config, get_config_dir};
+use plato::util::open_config_file;
 
 /// Plato: A cool project templating tool
 #[derive(Parser, Debug)]
@@ -23,6 +24,11 @@ enum Commands {
         /// The name of the new project directory
         project_name: String,
     },
+    /// Open the plato.toml for a template in editor
+    Config {
+        /// The name of the template (e.g., py3.12)
+        template_name: String,
+    },
 }
 
 fn main() {
@@ -41,7 +47,7 @@ fn try_run() -> anyhow::Result<()> {
             template_name,
             project_name,
         } => {
-            let source_path = get_config_dir().join(&template_name);
+            let source_path = get_config_dir()?.join(&template_name);
             let config = get_config(&source_path)?;
             let target_path = pwd.join(&project_name);
             plato::run(&RunOptions {
@@ -51,6 +57,10 @@ fn try_run() -> anyhow::Result<()> {
                 target_path,
                 config,
             })
+        }
+        Commands::Config { template_name } => {
+            let source_path = get_config_dir()?.join(&template_name);
+            open_config_file(&source_path)
         }
     }
 }
