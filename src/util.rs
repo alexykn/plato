@@ -25,10 +25,13 @@ pub(crate) fn execute_command(cmd: &str, args: &[&str], target: &Path) -> Result
     if !ALLOWED_CMD_RE.is_match(cmd_name) {
         bail!("Selected command '{cmd}' is not allowed");
     }
-    Command::new(cmd)
+    let status = Command::new(cmd)
         .args(args)
         .current_dir(target)
         .status()
         .context(format!("Unable to run command {cmd}"))?;
+    if !status.success() {
+        bail!("Command {cmd} failed with status {status}");
+    }
     Ok(())
 }

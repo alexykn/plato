@@ -42,10 +42,7 @@ pub fn run(options: &RunOptions) -> Result<()> {
             should_setup_git = false; // we use cargo init to setup rust, no manual git setup needed.
             RustSetup.setup(ctx)
         }
-        TemplateLanguage::Base => {
-            println!("No supported 'template_language' specified, setting up base workspace.");
-            Ok(())
-        }
+        TemplateLanguage::Base => Ok(()),
     }?;
     if should_setup_git {
         setup_git(&options.target_path)?;
