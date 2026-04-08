@@ -2,7 +2,6 @@ use anyhow::{Context, Result, bail};
 use regex::Regex;
 use std::env::var;
 use std::ffi::OsString;
-use std::fs::read_dir;
 use std::path::Path;
 use std::process::Command;
 use std::sync::LazyLock;
@@ -39,33 +38,6 @@ pub fn open_config_file(template_path: &Path) -> Result<()> {
         bail!("Editor exited with non-zero exit code.")
     }
 
-    Ok(())
-}
-
-/// Lists the templates in the given Plato config directory.
-///
-/// # Errors
-/// Returns an error if the config directory cannot be read.
-pub fn list_templates(config_dir: &Path) -> Result<()> {
-    let templates: Vec<_> = read_dir(config_dir)?
-        .filter_map(Result::ok)
-        .map(|dir| {
-            let valid = dir.path().join("plato.toml").exists();
-            (dir, valid)
-        })
-        .collect();
-
-    let max_length = templates
-        .iter()
-        .map(|(dir, _)| dir.file_name().to_string_lossy().len())
-        .max()
-        .unwrap_or(0);
-
-    for (dir, is_valid) in templates {
-        let name = dir.file_name().to_string_lossy().into_owned();
-        let status = if is_valid { "ok" } else { "plato.toml missing" };
-        println!(" - {name:<max_length$} | {status}");
-    }
     Ok(())
 }
 

@@ -1,9 +1,8 @@
+use anyhow::Result;
 use clap::{Parser, Subcommand};
-use std::env;
+use std::path::PathBuf;
 
 use plato::RunOptions;
-use plato::core::config::{get_config, get_config_dir};
-use plato::util::{list_templates, open_config_file};
 
 /// Plato: A cool project templating tool
 #[derive(Parser, Debug)]
@@ -19,10 +18,18 @@ enum Commands {
     /// Initialize new project from a template
     Init {
         /// The name of the template (e.g., py3.12)
-        template_name: String,
+        template_name: Option<String>,
 
         /// The name of the new project directory
-        project_name: String,
+        project_name: Option<String>,
+
+        /// Overwrite existing target directory if it exists
+        #[arg(short, long)]
+        force: bool,
+
+        /// Provide an explicit path to load the template from
+        #[arg(short, long)]
+        path: Option<PathBuf>,
     },
     /// Open the plato.toml for a template in editor
     Config {
@@ -31,6 +38,34 @@ enum Commands {
     },
     /// List all templates in the template folder
     List,
+}
+
+fn map_args(
+    template_name: Option<String>,
+    project_name: Option<String>,
+    path: Option<&PathBuf>,
+) -> Result<(Option<String>, String)> {
+    if path.is_some() {
+        if project_name.is_some() {
+            anyhow::bail!(
+                "With --path, init expects exactly one positional argument: <PROJECT_NAME>"
+            );
+        }
+        let project_name = template_name.ok_or_else(|| {
+            anyhow::anyhow!(
+                "With --path, init expects exactly one positional argument: <PROJECT_NAME>"
+            )
+        })?;
+        return Ok((None, project_name));
+    }
+
+    let template_name = template_name.ok_or_else(|| {
+        anyhow::anyhow!("Without --path, init expects <TEMPLATE_NAME> <PROJECT_NAME>")
+    })?;
+    let project_name = project_name.ok_or_else(|| {
+        anyhow::anyhow!("Without --path, init expects <TEMPLATE_NAME> <PROJECT_NAME>")
+    })?;
+    Ok((Some(template_name), project_name))
 }
 
 fn main() {
@@ -42,31 +77,25 @@ fn main() {
 
 fn try_run() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    let pwd = env::current_dir()?;
 
     match cli.command {
         Commands::Init {
             template_name,
             project_name,
+            force,
+            path,
         } => {
-            let source_path = get_config_dir()?.join(&template_name);
-            let config = get_config(&source_path)?;
-            let target_path = pwd.join(&project_name);
-            plato::run(&RunOptions {
+            let (template_name, project_name) =
+                map_args(template_name, project_name, path.as_ref())?;
+
+            plato::run(RunOptions {
                 template_name,
                 project_name,
-                source_path,
-                target_path,
-                config,
+                force,
+                path,
             })
         }
-        Commands::Config { template_name } => {
-            let source_path = get_config_dir()?.join(&template_name);
-            open_config_file(&source_path)
-        }
-        Commands::List => {
-            let config_dir = get_config_dir()?;
-            list_templates(&config_dir)
-        }
+        Commands::Config { template_name } => plato::edit_config(&template_name),
+        Commands::List => plato::display_templates(),
     }
 }

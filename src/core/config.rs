@@ -87,6 +87,8 @@ pub struct PlatoConfig {
     pub template_language: TemplateLanguage,
     #[serde(default)]
     pub setup_git: bool,
+    #[serde(default)]
+    pub extra_dirs: Vec<PathBuf>,
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]
@@ -121,7 +123,7 @@ pub struct RustConfig {
 ///
 /// # Errors
 /// Returns an error if the user's home directory cannot be determined.
-pub fn get_config_dir() -> Result<PathBuf> {
+pub(crate) fn get_global_plato_dir() -> Result<PathBuf> {
     let base_dirs = BaseDirs::new().context("Could not find home directory")?;
     let mut config_path = base_dirs.home_dir().to_path_buf();
     config_path.push(".config");
@@ -133,17 +135,15 @@ pub fn get_config_dir() -> Result<PathBuf> {
 ///
 /// # Errors
 /// Returns an error if the file is missing, unreadable, or invalid TOML.
-pub fn get_config(source: &Path) -> Result<Config> {
-    let toml_path = source.join("plato.toml");
+pub(crate) fn get_config(source_path: &Path) -> Result<Config> {
+    let toml_path = source_path.join("plato.toml");
     if !toml_path.exists() {
-        bail!("Missing plato.toml in {}", source.display());
+        bail!("Missing plato.toml in {}", source_path.display());
     }
-
     let content = read_to_string(&toml_path).context(format!(
         "Could not read plato toml at {}",
         toml_path.display()
     ))?;
-
     let config: Config = toml::from_str(&content).context(format!(
         "Invalid format in plato toml at {}",
         toml_path.display()

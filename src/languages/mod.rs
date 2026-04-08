@@ -1,11 +1,12 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
+use crate::ExecutionContext;
+use crate::core::config::Config;
 use crate::languages::rust::RustPackageManagerSetup;
 use crate::languages::rust::{
     RustPackageManager, RustSetupContext, cargo::CargoPackageManagerSetup,
 };
-use crate::{RunOptions, core::config::Config};
 
 use crate::languages::python::{
     PythonPackageManager, PythonPackageManagerSetup, PythonSetupContext,
@@ -22,13 +23,13 @@ pub struct SetupContext {
     pub config: Config,
 }
 
-impl From<&RunOptions> for SetupContext {
-    fn from(options: &RunOptions) -> Self {
+impl From<&ExecutionContext> for SetupContext {
+    fn from(ctx: &ExecutionContext) -> Self {
         SetupContext {
-            project_name: options.project_name.clone(),
-            source_path: options.source_path.clone(),
-            target_path: options.target_path.clone(),
-            config: options.config.clone(),
+            project_name: ctx.project_name.clone(),
+            source_path: ctx.source_path.clone(),
+            target_path: ctx.target_path.clone(),
+            config: ctx.source_config.clone(),
         }
     }
 }
