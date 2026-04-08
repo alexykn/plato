@@ -42,7 +42,13 @@ impl TemplateRegistry {
         for dir in dirs_to_check {
             if let Ok(entries) = read_dir(dir) {
                 let iter = entries
-                    .filter_map(Result::ok)
+                    .filter_map(|res| match res {
+                        Ok(entry) => Some(entry),
+                        Err(e) => {
+                            println!("WARNING: Could not open entry {e}");
+                            None
+                        }
+                    })
                     .filter(|entry| entry.path().is_dir())
                     .map(|entry| {
                         let dir = entry.path();
@@ -91,6 +97,7 @@ impl TemplateRegistry {
                 };
                 println!(" - {name:<max_length$} | {status}");
             }
+            println!();
         }
         Ok(())
     }
