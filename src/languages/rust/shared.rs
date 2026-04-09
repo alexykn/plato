@@ -84,5 +84,6 @@ pub(crate) fn get_rust_package_manager() -> RustPackageManager {
     if is_installed("cargo") {
         return RustPackageManager::Cargo;
     }
+    eprintln!("No supported rust package manager found for 'project_scope: auto'.");
     RustPackageManager::None
 }

@@ -55,6 +55,7 @@ pub(crate) fn get_python_package_manager(version: &str) -> PythonPackageManager 
     if is_installed(&format!("python{version}").to_string()) {
         return PythonPackageManager::Pip;
     }
+    eprintln!("No supported python package manager found for 'project_scope: auto'.");
     PythonPackageManager::None
 }
 

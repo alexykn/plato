@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use std::path::PathBuf;
 
 use crate::ExecutionContext;
@@ -47,8 +47,10 @@ impl LanguageSetup for PythonSetup {
             PythonPackageManager::Uv => UvPackageManagerSetup.setup(ctx),
             PythonPackageManager::Pip => PipPackageManagerSetup.setup(ctx),
             PythonPackageManager::None => {
-                eprintln!("No compatible python package manager found");
-                Ok(())
+                bail!(
+                    "Python package manager {:?} requested but not installed.",
+                    ctx.package_manager
+                );
             }
         }?;
         Ok(())
@@ -63,8 +65,10 @@ impl LanguageSetup for RustSetup {
         match ctx.package_manager {
             RustPackageManager::Cargo => CargoPackageManagerSetup.setup(ctx),
             RustPackageManager::None => {
-                eprintln!("No compatible rust package manager found");
-                Ok(())
+                bail!(
+                    "Rust package manager {:?} requested but not installed.",
+                    ctx.package_manager
+                )
             }
         }
     }
