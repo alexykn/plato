@@ -11,7 +11,6 @@ pub enum PythonPackageManagerConfig {
     Pip,
     Uv,
     #[default]
-    #[serde(other)]
     Auto,
 }
 
@@ -22,7 +21,6 @@ pub enum PythonProjectScopeConfig {
     Install,
     Base,
     #[default]
-    #[serde(other)]
     Auto,
 }
 
@@ -33,7 +31,6 @@ pub enum RustProjectScopeConfig {
     Fetch,
     Base,
     #[default]
-    #[serde(other)]
     Auto,
 }
 
@@ -45,7 +42,6 @@ pub enum RustProjectTypeConfig {
     #[serde(alias = "lib")]
     Library,
     #[default]
-    #[serde(other)]
     Auto,
 }
 
@@ -57,7 +53,6 @@ pub enum TemplateLanguage {
     #[serde(alias = "rs")]
     Rust,
     #[default]
-    #[serde(other)]
     Base,
 }
 
