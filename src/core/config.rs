@@ -19,8 +19,8 @@ pub enum PythonPackageManagerConfig {
 pub enum PythonProjectScopeConfig {
     Requirements,
     Install,
-    Base,
     #[default]
+    Base,
     Auto,
 }
 
@@ -29,8 +29,8 @@ pub enum PythonProjectScopeConfig {
 pub enum RustProjectScopeConfig {
     Build,
     Fetch,
-    Base,
     #[default]
+    Base,
     Auto,
 }
 
