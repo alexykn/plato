@@ -1,6 +1,5 @@
 use anyhow::{Result, anyhow, bail};
 use std::collections::{BTreeMap, HashMap};
-use std::fs::read_dir;
 use std::path::{Component, PathBuf};
 
 pub struct TemplateRegistry {
@@ -39,25 +38,24 @@ impl TemplateRegistry {
             dirs_to_check.push(dir);
         }
         let mut templates: HashMap<String, (PathBuf, bool)> = HashMap::new();
-        for dir in dirs_to_check {
-            if let Ok(entries) = read_dir(dir) {
-                let iter = entries
-                    .filter_map(|res| match res {
-                        Ok(entry) => Some(entry),
-                        Err(e) => {
-                            println!("WARNING: Could not open entry {e}");
-                            None
-                        }
-                    })
-                    .filter(|entry| entry.path().is_dir())
-                    .map(|entry| {
-                        let dir = entry.path();
-                        let name = entry.file_name().to_string_lossy().into_owned();
-                        let valid = entry.path().join("plato.toml").exists();
-                        (name, (dir, valid))
-                    });
-                templates.extend(iter);
-            }
+        for dir in &dirs_to_check {
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                eprintln!("WARNING: cannot read dir {dir:?}");
+                continue;
+            };
+            templates.extend(entries.filter_map(|res| {
+                let entry = res.inspect_err(|e| println!("WARNING: {e}")).ok()?;
+                // file_type() is cached by read_dir on Unix/Windows, no extra stat
+                let ft = entry.file_type().ok()?;
+                if !ft.is_dir() {
+                    return None;
+                }
+                let path = entry.path();
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let valid = path.join("plato.toml").is_file();
+
+                Some((name, (path, valid)))
+            }));
         }
         Ok(Self { content: templates })
     }
