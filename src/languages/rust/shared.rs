@@ -1,3 +1,6 @@
+use crate::languages::rust::RustPackageManager::{Cargo, None};
+use crate::languages::rust::RustProjectScope::{Base, Build, Fetch};
+use crate::languages::rust::RustProjectType::{Binary, Library};
 use crate::languages::rust::{RustPackageManager, RustProjectScope, RustProjectType};
 use crate::util::is_installed;
 use anyhow::{Context, Result, bail};
@@ -33,9 +36,8 @@ fn parse_cargo_manifest(cargo_manifest_path: &Path) -> Result<CargoManifest> {
     Ok(cargo_manifest)
 }
 
-fn has_rust_bin_targets(target: &Path) -> bool {
+fn has_rust_bin_targets(target: &Path, manifest: Option<&CargoManifest>) -> bool {
     let bin_dir = target.join("src/bin");
-    let cargo_manifest_path = target.join("Cargo.toml");
 
     let has_default_bin = target.join("src/main.rs").is_file();
 
@@ -47,33 +49,30 @@ fn has_rust_bin_targets(target: &Path) -> bool {
         })
     });
 
-    let entries_from_manifest = parse_cargo_manifest(&cargo_manifest_path)
-        .ok()
-        .and_then(|manifest| manifest.bin)
-        .unwrap_or_default();
-
-    let has_valid_bin_entries_from_manifest = entries_from_manifest.into_iter().any(|entry| {
-        entry.path.is_some_and(|path| {
-            path.extension().is_some_and(|ext| {
-                matches!(ext.to_str(), Some("rs")) && target.join(&path).is_file()
+    let has_valid_bin_entries_from_manifest = manifest
+        .and_then(|manifest| manifest.bin.as_ref())
+        .is_some_and(|bins| {
+            bins.iter().any(|entry| {
+                entry.path.as_ref().is_some_and(|path| {
+                    path.extension().is_some_and(|ext| {
+                        matches!(ext.to_str(), Some("rs")) && target.join(path).is_file()
+                    })
+                })
             })
-        })
-    });
+        });
 
     has_default_bin || has_valid_bin_in_bin_dir || has_valid_bin_entries_from_manifest
 }
 
-fn has_rust_lib_targets(target: &Path) -> bool {
-    let cargo_manifest_path = target.join("Cargo.toml");
+fn has_rust_lib_targets(target: &Path, manifest: Option<&CargoManifest>) -> bool {
     let has_default_lib = target.join("src/lib.rs").is_file();
 
-    let has_valid_lib_entry_from_manifest = parse_cargo_manifest(&cargo_manifest_path)
-        .ok()
-        .and_then(|manifest| manifest.lib)
-        .and_then(|lib| lib.path)
+    let has_valid_lib_entry_from_manifest = manifest
+        .and_then(|manifest| manifest.lib.as_ref())
+        .and_then(|lib| lib.path.as_ref())
         .is_some_and(|path| {
             path.extension().is_some_and(|ext| {
-                matches!(ext.to_str(), Some("rs")) && target.join(&path).is_file()
+                matches!(ext.to_str(), Some("rs")) && target.join(path).is_file()
             })
         });
 
@@ -81,25 +80,30 @@ fn has_rust_lib_targets(target: &Path) -> bool {
 }
 
 pub(crate) fn get_rust_project_scope(target: &Path) -> RustProjectScope {
-    use RustProjectScope::{Base, Build, Fetch};
-    if !target.join("Cargo.toml").exists() {
+    let cargo_manifest_path = target.join("Cargo.toml");
+    let cargo_manifest = parse_cargo_manifest(&cargo_manifest_path).ok();
+
+    if !cargo_manifest_path.exists() {
         return Base;
     }
-    if has_rust_lib_targets(target) || has_rust_bin_targets(target) {
+    if has_rust_lib_targets(target, cargo_manifest.as_ref())
+        || has_rust_bin_targets(target, cargo_manifest.as_ref())
+    {
         return Build;
     }
     Fetch
 }
 
 pub(crate) fn get_rust_project_type(target: &Path) -> RustProjectType {
-    use RustProjectType::{Binary, Library};
     let cargo_manifest_path = target.join("Cargo.toml");
+    let cargo_manifest = parse_cargo_manifest(&cargo_manifest_path).ok();
+
     if !cargo_manifest_path.exists() {
         return Binary;
     }
-    if has_rust_bin_targets(target) {
+    if has_rust_bin_targets(target, cargo_manifest.as_ref()) {
         Binary
-    } else if has_rust_lib_targets(target) {
+    } else if has_rust_lib_targets(target, cargo_manifest.as_ref()) {
         Library
     } else {
         Binary
@@ -108,8 +112,8 @@ pub(crate) fn get_rust_project_type(target: &Path) -> RustProjectType {
 
 pub(crate) fn get_rust_package_manager() -> RustPackageManager {
     if is_installed("cargo") {
-        return RustPackageManager::Cargo;
+        return Cargo;
     }
     eprintln!("No supported rust package manager found for 'project_scope: auto'.");
-    RustPackageManager::None
+    None
 }
