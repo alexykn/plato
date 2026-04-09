@@ -13,9 +13,14 @@ pub(crate) struct PipPackageManagerSetup;
 
 impl PythonPackageManagerSetup for PipPackageManagerSetup {
     fn setup(&self, ctx: PythonSetupContext) -> Result<()> {
-        let version = ctx.config.python.language_version;
-        let python_requested = format!("python{version}");
-        let python_major = format!("python{}", version.split('.').next().unwrap());
+        let requested_version = ctx.config.python.language_version;
+        let end = requested_version
+            .find('.')
+            .unwrap_or(requested_version.len());
+        let major_version = &requested_version[..end];
+
+        let python_requested = format!("python{requested_version}");
+        let python_major = format!("python{major_version}");
         let python_unknown = "python";
 
         let python_venv_args = ["-m", "venv", ".venv"];
@@ -32,7 +37,11 @@ impl PythonPackageManagerSetup for PipPackageManagerSetup {
                 );
             })
             .or_else(|_| execute_command(python_unknown, &python_venv_args, &ctx.target_path))
-            .with_context(|| format!("Unable to execute {python_unknown}"))?;
+            .with_context(|| {
+                format!(
+                    "Unable to create venv with any Python command: {python_requested}, {python_major}, {python_unknown}"
+                )
+            })?;
 
         match ctx.project_scope {
             PythonProjectScope::Install => Self::pip_install_project(&ctx.target_path),

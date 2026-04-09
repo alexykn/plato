@@ -60,15 +60,18 @@ pub(crate) fn get_python_project_scope(target: &Path, project_name: &str) -> Pyt
     }
     Base
 }
+
 // Keep auto-detection quiet here: pip command fallback warnings are emitted in
 // `PipPackageManagerSetup::setup`, so logging them again at detection time would duplicate output.
+//
 pub(crate) fn get_python_package_manager(version: &str) -> PythonPackageManager {
     if is_installed("uv") {
         return PythonPackageManager::Uv;
     }
-    let python_requested = format!("python{version}");
-    if is_installed(&python_requested.clone())
-        || is_installed(python_requested.split('.').next().unwrap_or(version))
+    let end = version.find('.').unwrap_or(version.len());
+    let major_version = &version[..end];
+    if is_installed(&format!("python{version}"))
+        || is_installed(&format!("python{major_version}"))
         || is_installed("python")
     {
         return PythonPackageManager::Pip;

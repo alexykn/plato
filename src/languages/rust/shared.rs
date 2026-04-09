@@ -3,7 +3,7 @@ use crate::util::is_installed;
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::fs::{read_dir, read_to_string};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Deserialize, Debug)]
 pub(crate) struct CargoManifest {
@@ -12,10 +12,14 @@ pub(crate) struct CargoManifest {
 }
 
 #[derive(Deserialize, Debug)]
-struct CargoLib;
+struct CargoLib {
+    path: Option<PathBuf>,
+}
 
 #[derive(Deserialize, Debug)]
-struct CargoBin;
+struct CargoBin {
+    path: Option<PathBuf>,
+}
 
 fn parse_cargo_manifest(cargo_manifest_path: &Path) -> Result<CargoManifest> {
     if !cargo_manifest_path.exists() {
@@ -31,12 +35,49 @@ fn parse_cargo_manifest(cargo_manifest_path: &Path) -> Result<CargoManifest> {
 
 fn has_rust_bin_targets(target: &Path) -> bool {
     let bin_dir = target.join("src/bin");
-    let Ok(entries) = read_dir(bin_dir) else {
-        return false;
-    };
-    entries
-        .flatten()
-        .any(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("rs"))
+    let cargo_manifest_path = target.join("Cargo.toml");
+
+    let has_default_bin = target.join("src/main.rs").is_file();
+
+    let has_valid_bin_in_bin_dir = read_dir(bin_dir).is_ok_and(|entries| {
+        entries.flatten().any(|entry| {
+            entry.path().extension().is_some_and(|ext| {
+                matches!(ext.to_str(), Some("rs")) && entry.file_type().is_ok_and(|ft| ft.is_file())
+            })
+        })
+    });
+
+    let entries_from_manifest = parse_cargo_manifest(&cargo_manifest_path)
+        .ok()
+        .and_then(|manifest| manifest.bin)
+        .unwrap_or_default();
+
+    let has_valid_bin_entries_from_manifest = entries_from_manifest.into_iter().any(|entry| {
+        entry.path.is_some_and(|path| {
+            path.extension().is_some_and(|ext| {
+                matches!(ext.to_str(), Some("rs")) && target.join(&path).is_file()
+            })
+        })
+    });
+
+    has_default_bin || has_valid_bin_in_bin_dir || has_valid_bin_entries_from_manifest
+}
+
+fn has_rust_lib_targets(target: &Path) -> bool {
+    let cargo_manifest_path = target.join("Cargo.toml");
+    let has_default_lib = target.join("src/lib.rs").is_file();
+
+    let has_valid_lib_entry_from_manifest = parse_cargo_manifest(&cargo_manifest_path)
+        .ok()
+        .and_then(|manifest| manifest.lib)
+        .and_then(|lib| lib.path)
+        .is_some_and(|path| {
+            path.extension().is_some_and(|ext| {
+                matches!(ext.to_str(), Some("rs")) && target.join(&path).is_file()
+            })
+        });
+
+    has_default_lib || has_valid_lib_entry_from_manifest
 }
 
 pub(crate) fn get_rust_project_scope(target: &Path) -> RustProjectScope {
@@ -44,10 +85,7 @@ pub(crate) fn get_rust_project_scope(target: &Path) -> RustProjectScope {
     if !target.join("Cargo.toml").exists() {
         return Base;
     }
-    if target.join("src/main.rs").exists()
-        || target.join("src/lib.rs").exists()
-        || has_rust_bin_targets(target)
-    {
+    if has_rust_lib_targets(target) || has_rust_bin_targets(target) {
         return Build;
     }
     Fetch
@@ -59,21 +97,9 @@ pub(crate) fn get_rust_project_type(target: &Path) -> RustProjectType {
     if !cargo_manifest_path.exists() {
         return Binary;
     }
-    let cargo_manifest = parse_cargo_manifest(&cargo_manifest_path).ok();
-    let has_lib_files = target.join("src/lib.rs").exists();
-    let has_bin_files = target.join("src/main.rs").exists() || target.join("src/bin").is_dir();
-    let has_lib_manifest = cargo_manifest
-        .as_ref()
-        .is_some_and(|manifest| manifest.lib.is_some());
-    let has_bin_manifest = cargo_manifest
-        .as_ref()
-        .and_then(|manifest| manifest.bin.as_ref())
-        .is_some_and(|bins| !bins.is_empty());
-    let has_lib = has_lib_files || has_lib_manifest;
-    let has_bin = has_bin_files || has_bin_manifest;
-    if has_bin {
+    if has_rust_bin_targets(target) {
         Binary
-    } else if has_lib {
+    } else if has_rust_lib_targets(target) {
         Library
     } else {
         Binary
