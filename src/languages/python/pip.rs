@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::path::Path;
 
 use crate::{
@@ -14,9 +14,25 @@ pub(crate) struct PipPackageManagerSetup;
 impl PythonPackageManagerSetup for PipPackageManagerSetup {
     fn setup(&self, ctx: PythonSetupContext) -> Result<()> {
         let version = ctx.config.python.language_version;
-        let python_command = format!("python{version}");
+        let python_requested = format!("python{version}");
+        let python_major = format!("python{}", version.split('.').next().unwrap());
+        let python_unknown = "python";
+
         let python_venv_args = ["-m", "venv", ".venv"];
-        execute_command(&python_command, &python_venv_args, &ctx.target_path)?;
+        execute_command(&python_requested, &python_venv_args, &ctx.target_path)
+            .inspect_err(|_| {
+                eprint!(
+                    "WARNING: Unable to execute {python_requested}, falling back to {python_major}"
+                );
+            })
+            .or_else(|_| execute_command(&python_major, &python_venv_args, &ctx.target_path))
+            .inspect_err(|_| {
+                eprintln!(
+                    "WARNING: Unable to execute {python_major}, falling back to {python_unknown}"
+                );
+            })
+            .or_else(|_| execute_command(python_unknown, &python_venv_args, &ctx.target_path))
+            .with_context(|| format!("Unable to execute {python_unknown}"))?;
 
         match ctx.project_scope {
             PythonProjectScope::Install => Self::pip_install_project(&ctx.target_path),
