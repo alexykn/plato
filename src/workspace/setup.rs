@@ -81,7 +81,14 @@ impl WorkspaceBuilder {
                 let pattern = format!("#{keyword}#");
                 path_str = path_str.replace(&pattern, replacement);
             }
-            target_map.insert(PathBuf::from(path_str), content);
+
+            let new_path = PathBuf::from(path_str);
+            if target_map.insert(new_path.clone(), content).is_some() {
+                return Err(anyhow::anyhow!(
+                    "Duplicate path after rendering: {}",
+                    new_path.display()
+                ));
+            }
         }
         deduplicate_dirmap(&mut target_map);
         Ok(Self {
@@ -97,18 +104,27 @@ impl WorkspaceBuilder {
                 FileContent::Template(raw_text) => {
                     let rendered = env
                         .render_str(&raw_text, context)
-                        .context(format!("Failed to render {}", path.display()))?;
+                        .with_context(|| format!("Failed to render {}", path.display()))?;
                     let new_path = path.with_extension("");
-                    rendered_map.insert(
-                        new_path,
-                        FileContent::Binary(Arc::<[u8]>::from(rendered.into_bytes())),
-                    );
+                    if rendered_map
+                        .insert(
+                            new_path.clone(),
+                            FileContent::Binary(Arc::from(rendered.into_bytes())),
+                        )
+                        .is_some()
+                    {
+                        return Err(anyhow::anyhow!(
+                            "Duplicate file after rendering: {}",
+                            new_path.display()
+                        ));
+                    }
                 }
-                _ => {
-                    rendered_map.insert(path, content);
+                other => {
+                    rendered_map.insert(path, other);
                 }
             }
         }
+
         Ok(Self {
             content: rendered_map,
         })
