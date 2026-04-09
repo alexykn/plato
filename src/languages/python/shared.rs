@@ -35,19 +35,28 @@ struct UvTable {
 
 pub(crate) fn get_python_project_scope(target: &Path, project_name: &str) -> PythonProjectScope {
     use PythonProjectScope::{Base, Install, Requirements};
-    if target.join("pyproject.toml").exists()
-        && target
-            .join(format!("src/{project_name}/__init__.py"))
-            .exists()
-    {
-        Install
-    } else if target.join("pyproject.toml").exists() || target.join("requirements.txt").exists() {
-        Requirements
-    } else {
-        Base
-    }
-}
 
+    let has_pyproject = target.join("pyproject.toml").exists();
+    let has_requirements = target.join("requirements.txt").exists();
+    let normalized_project_name = project_name.replace('-', "_");
+
+    let has_src_package = target
+        .join(format!("src/{project_name}/__init__.py"))
+        .exists()
+        || target
+            .join(format!("src/{normalized_project_name}/__init__.py"))
+            .exists();
+
+    if has_pyproject && has_src_package {
+        return Install;
+    }
+
+    if has_pyproject || has_requirements {
+        return Requirements;
+    }
+
+    Base
+}
 // Keep auto-detection quiet here: pip command fallback warnings are emitted in
 // `PipPackageManagerSetup::setup`, so logging them again at detection time would duplicate output.
 pub(crate) fn get_python_package_manager(version: &str) -> PythonPackageManager {
