@@ -43,8 +43,8 @@ impl TemplateRegistry {
                 eprintln!("WARNING: cannot read dir {}", dir.display());
                 continue;
             };
-            templates.extend(entries.filter_map(|res| {
-                let entry = res.inspect_err(|e| println!("WARNING: {e}")).ok()?;
+            templates.extend(entries.filter_map(|result| {
+                let entry = result.inspect_err(|e| println!("WARNING: {e}")).ok()?;
                 // file_type() is cached by read_dir on Unix/Windows, no extra stat
                 let ft = entry.file_type().ok()?;
                 if !ft.is_dir() {

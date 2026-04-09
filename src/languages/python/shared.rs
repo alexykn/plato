@@ -47,7 +47,12 @@ pub(crate) fn get_python_project_scope(target: &Path, project_name: &str) -> Pyt
             .join(format!("src/{normalized_project_name}/__init__.py"))
             .exists();
 
-    if has_pyproject && has_src_package {
+    let has_flat_package = target.join(format!("{project_name}/__init__.py")).exists()
+        || target
+            .join(format!("{normalized_project_name}/__init__.py"))
+            .exists();
+
+    if has_pyproject && (has_src_package || has_flat_package) {
         return Install;
     }
     if has_pyproject || has_requirements {
