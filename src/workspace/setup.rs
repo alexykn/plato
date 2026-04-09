@@ -57,8 +57,9 @@ impl WorkspaceBuilder {
             } else {
                 match path.extension().and_then(|s| s.to_str()) {
                     Some("j2" | "mj") => {
-                        let text = read_to_string(path)
-                            .with_context(|| format!("Failed to read template {}", path.display()))?;
+                        let text = read_to_string(path).with_context(|| {
+                            format!("Failed to read template {}", path.display())
+                        })?;
                         FileContent::Template(Arc::<str>::from(text))
                     }
                     _ => FileContent::BinaryLazy {
@@ -98,7 +99,10 @@ impl WorkspaceBuilder {
                         .render_str(&raw_text, context)
                         .context(format!("Failed to render {}", path.display()))?;
                     let new_path = path.with_extension("");
-                    rendered_map.insert(new_path, FileContent::Binary(Arc::<[u8]>::from(rendered.into_bytes())));
+                    rendered_map.insert(
+                        new_path,
+                        FileContent::Binary(Arc::<[u8]>::from(rendered.into_bytes())),
+                    );
                 }
                 _ => {
                     rendered_map.insert(path, content);
@@ -114,11 +118,13 @@ impl WorkspaceBuilder {
         for (path, content) in self.content {
             let full_path = target.join(&path);
             match content {
-                FileContent::BinaryLazy { path: source_path, cache } => {
+                FileContent::BinaryLazy {
+                    path: source_path,
+                    cache,
+                } => {
                     if cache.get().is_none() {
-                        let bytes = read(&source_path)
-                            .map(Arc::<[u8]>::from)
-                            .with_context(|| {
+                        let bytes =
+                            read(&source_path).map(Arc::<[u8]>::from).with_context(|| {
                                 format!("Failed to read binary file {}", source_path.display())
                             })?;
                         let _ = cache.set(bytes);

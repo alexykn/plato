@@ -40,7 +40,7 @@ impl TemplateRegistry {
         let mut templates: HashMap<String, (PathBuf, bool)> = HashMap::new();
         for dir in &dirs_to_check {
             let Ok(entries) = std::fs::read_dir(dir) else {
-                eprintln!("WARNING: cannot read dir {dir:?}");
+                eprintln!("WARNING: cannot read dir {}", dir.display());
                 continue;
             };
             templates.extend(entries.filter_map(|res| {
