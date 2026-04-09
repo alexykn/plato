@@ -50,11 +50,9 @@ pub(crate) fn get_python_project_scope(target: &Path, project_name: &str) -> Pyt
     if has_pyproject && has_src_package {
         return Install;
     }
-
     if has_pyproject || has_requirements {
         return Requirements;
     }
-
     Base
 }
 // Keep auto-detection quiet here: pip command fallback warnings are emitted in
@@ -100,7 +98,7 @@ pub(crate) fn requirements_from_pyproject(target: &Path) -> Result<Vec<String>> 
     }
     if let Some(uv_deps) = pyproject
         .tool
-        .and_then(|t| t.uv)
+        .and_then(|tool| tool.uv)
         .and_then(|uv| uv.dev_dependencies)
     {
         requirements.extend(uv_deps);
