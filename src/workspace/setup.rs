@@ -4,13 +4,17 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::fs::{create_dir_all, read, read_to_string, write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
 use walkdir::WalkDir;
 
-#[derive(Debug, PartialEq)]
 pub(crate) enum FileContent {
-    Binary(Vec<u8>),
-    Template(String),
-    None, // Here None means it's a directory
+    BinaryLazy {
+        path: PathBuf,
+        cache: OnceLock<Arc<[u8]>>,
+    },
+    Binary(Arc<[u8]>),
+    Template(Arc<str>),
+    None,
 }
 
 fn deduplicate_dirmap(map: &mut HashMap<PathBuf, FileContent>) {
@@ -52,8 +56,15 @@ impl WorkspaceBuilder {
                 FileContent::None
             } else {
                 match path.extension().and_then(|s| s.to_str()) {
-                    Some("j2" | "mj") => FileContent::Template(read_to_string(path)?),
-                    _ => FileContent::Binary(read(path)?),
+                    Some("j2" | "mj") => {
+                        let text = read_to_string(path)
+                            .with_context(|| format!("Failed to read template {}", path.display()))?;
+                        FileContent::Template(Arc::<str>::from(text))
+                    }
+                    _ => FileContent::BinaryLazy {
+                        path: path.to_path_buf(),
+                        cache: OnceLock::new(),
+                    },
                 }
             };
             raw_map.insert(rel_path, content);
@@ -87,7 +98,7 @@ impl WorkspaceBuilder {
                         .render_str(&raw_text, context)
                         .context(format!("Failed to render {}", path.display()))?;
                     let new_path = path.with_extension("");
-                    rendered_map.insert(new_path, FileContent::Binary(rendered.into_bytes()));
+                    rendered_map.insert(new_path, FileContent::Binary(Arc::<[u8]>::from(rendered.into_bytes())));
                 }
                 _ => {
                     rendered_map.insert(path, content);
@@ -103,11 +114,28 @@ impl WorkspaceBuilder {
         for (path, content) in self.content {
             let full_path = target.join(&path);
             match content {
+                FileContent::BinaryLazy { path: source_path, cache } => {
+                    if cache.get().is_none() {
+                        let bytes = read(&source_path)
+                            .map(Arc::<[u8]>::from)
+                            .with_context(|| {
+                                format!("Failed to read binary file {}", source_path.display())
+                            })?;
+                        let _ = cache.set(bytes);
+                    }
+                    let bytes = cache
+                        .get()
+                        .context("Binary cache was not initialized after read")?;
+                    if let Some(parent) = full_path.parent() {
+                        create_dir_all(parent)?;
+                    }
+                    write(full_path, bytes.as_ref())?;
+                }
                 FileContent::Binary(bytes) => {
                     if let Some(parent) = full_path.parent() {
                         create_dir_all(parent)?;
                     }
-                    write(full_path, bytes)?;
+                    write(full_path, bytes.as_ref())?;
                 }
                 FileContent::None => {
                     create_dir_all(full_path)?;
