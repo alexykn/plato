@@ -130,8 +130,8 @@ pub(crate) fn ensure_requirements(target: &Path) -> Result<bool> {
         let plato_req_file = target.join(".plato/requirements.txt");
         let requirements = requirements_from_pyproject(target)?;
         let file_content = requirements.join("\n");
-        let _ = fs::create_dir_all(plato_hidden_path);
-        let _ = fs::write(&plato_req_file, file_content);
+        fs::create_dir_all(plato_hidden_path)?;
+        fs::write(&plato_req_file, file_content)?;
 
         println!(
             "Generating requirements.txt at {} to satisfy pip",
