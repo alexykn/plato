@@ -1,3 +1,4 @@
+use super::shared::build_python_versioned_commands;
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 
@@ -11,13 +12,6 @@ fn get_pip_install_args() -> Vec<String> {
         .into_iter()
         .map(str::to_string)
         .collect()
-}
-
-#[derive(Debug, Clone)]
-struct PythonVersionedCommands {
-    requested: String,
-    major: String,
-    unknown: String,
 }
 
 use crate::{
@@ -135,18 +129,4 @@ fn get_requirements_file_path(target: &Path) -> Result<PathBuf> {
         }
     };
     Ok(requirements_file)
-}
-
-fn build_python_versioned_commands(version: &str) -> PythonVersionedCommands {
-    let end = version.find('.').unwrap_or(version.len());
-    let major_version = &version[..end];
-    let python_requested = format!("python{version}");
-    let python_major = format!("python{major_version}");
-    let python_unknown = String::from("python");
-
-    PythonVersionedCommands {
-        requested: python_requested,
-        major: python_major,
-        unknown: python_unknown,
-    }
 }
