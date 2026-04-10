@@ -11,7 +11,8 @@ and Rust projects.
 Current CLI:
 
 ```bash
-plato init <template_name> <project_name>
+plato init [OPTIONS] <template_name> <project_name>
+plato init [OPTIONS] --path <template_dir> <project_name>
 plato config <template_name>
 plato list
 ```
@@ -21,6 +22,8 @@ Examples:
 ```bash
 plato init py my-app
 plato init rs-bin hello-rust
+plato init --path ~/src/my-template demo
+plato init --force py existing-dir
 plato config py
 plato list
 ```
@@ -48,20 +51,22 @@ Template source location:
 ## Architecture & Setup Flow
 Execution flow:
 
-1. CLI parses either `template_name` + `project_name` for `init`, or just `template_name` for `config`
-2. Plato resolves the template source directory at `~/.config/plato/<template_name>`
+1. CLI parses either `<template_name> <project_name>` for `init`, or `--path <template_dir> <project_name>`
+2. Plato resolves the template source directory:
+   - from the template registry under `~/.config/plato`
+   - or directly from `--path`
 3. For `plato config`, Plato opens that template’s `plato.toml` in your editor
 4. Plato loads `plato.toml`
-4. Plato creates the target directory `./<project_name>`
-5. Plato scans the template directory
-6. Plato renders:
+5. Plato creates the target directory `./<project_name>`
+6. Plato scans the template directory
+7. Plato renders:
    - file paths using `#...#` placeholders
    - file contents using MiniJinja (`{{ ... }}`)
-7. Plato optionally runs language-specific setup:
+8. Plato optionally runs language-specific setup:
    - Python: venv + dependency sync/install
    - Rust: optional `cargo init`, then `cargo fetch` or `cargo build`
-8. Plato optionally runs `git init`
-9. If setup fails at any point, the target directory is cleaned up automatically
+9. Plato optionally runs `git init`
+10. If setup fails at any point, the target directory is cleaned up automatically
 
 Important behavior:
 - `plato.toml` is configuration only and is **not copied** into the generated project.
@@ -145,12 +150,15 @@ docs/alice/intro.md
 
 Each template must contain a `plato.toml` file.
 
+Most of this schema is used in per-template `plato.toml` files. The `extra_dirs` setting is special: it is read from the global config at `~/.config/plato/plato.toml` and extends template discovery for `plato init`, `plato config`, and `plato list`.
+
 Full schema:
 
 ```toml
 [plato]
 template_language = "base"   # base | python | py | rust | rs
-setup_git = false            # default: false
+setup_git = false             # default: false
+extra_dirs = []               # optional extra template directories (main ~/.config/plato only)
 
 [template.context]
 # arbitrary key-value pairs for path and file content templates
@@ -158,15 +166,18 @@ setup_git = false            # default: false
 # author = "Alice"
 
 [python]
-language_version = "3"      # default: "3"
-package_manager = "auto"    # auto | uv | pip
-project_scope = "auto"      # auto | base | requirements | install
+language_version = "3"       # default: "3"
+package_manager = "auto"     # auto | uv | pip
+project_scope = "auto"       # auto | base | requirements | install
+
+[python.pip]
+version_fallback = false      # default: false
 
 [rust]
-toolchain = "stable"        # default: "stable"
-project_scope = "auto"      # auto | base | fetch | build
-project_type = "auto"       # auto | binary | bin | library | lib
-cargo_init = false           # default: false
+toolchain = "stable"         # default: "stable"
+project_scope = "auto"       # auto | base | fetch | build
+project_type = "auto"        # auto | binary | bin | library | lib
+cargo_init = false            # default: false
 ```
 
 ### `[plato]`
@@ -177,13 +188,27 @@ cargo_init = false           # default: false
 - `setup_git`
   - if `true`, Plato runs `git init` in the generated target
   - default is `false`
+- `extra_dirs`
+  - optional list of additional absolute directories to search for templates
+  - read from the global config at `~/.config/plato/plato.toml`
+  - malformed paths and non-existent directories are skipped with a warning
+  - when names collide, later scanned directories win
 
-### `plato config`
-- `plato config <template_name>` opens the template’s `plato.toml` in your editor
-- it prefers `$VISUAL`, then `$EDITOR`, then falls back to `nano`
-
-### `plato list`
-- `plato list` prints the available template directories from `~/.config/plato`
+### CLI commands
+- `plato init <template_name> <project_name>`
+  - create `./<project_name>` from a named template in the registry
+- `plato init --path <template_dir> <project_name>`
+  - load a template directly from a filesystem path instead of the registry
+  - with `--path`, `init` accepts exactly one positional argument: `<project_name>`
+- `plato init --force ...`
+  - allow using an existing target directory instead of failing when it already exists
+  - use carefully: Plato may overwrite files in that directory, and if setup fails the target directory is cleaned up
+- `plato config <template_name>`
+  - opens the template’s `plato.toml` in your editor
+  - prefers `$VISUAL`, then `$EDITOR`, then falls back to `nano`
+- `plato list`
+  - prints discovered templates from `~/.config/plato` and any configured `extra_dirs`
+  - marks templates missing `plato.toml`
 
 ### `[template.context]`
 Arbitrary string key-value pairs for path and content templates.
@@ -194,7 +219,7 @@ Arbitrary string key-value pairs for path and content templates.
   - used in template context as `language_version`
   - default: `"3"`
 - `package_manager`
-  - `auto`: prefer `uv` if installed, else `python<version>` + `pip`
+  - `auto`: prefer `uv` if installed, else use pip when a matching Python command exists under the current pip fallback policy
   - `uv`: force `uv`
   - `pip`: force `pip`
 - `project_scope`
@@ -202,6 +227,16 @@ Arbitrary string key-value pairs for path and content templates.
   - `base`: create no Python environment or dependency install
   - `requirements`: install dependencies only
   - `install`: install the project itself
+
+### `[python.pip]`
+- `version_fallback`
+  - if `false`, pip setup requires the exact configured `python<language_version>` command
+  - if `true`, pip venv creation tries these commands in order:
+    1. `python<language_version>`
+    2. `python<major>`
+    3. `python`
+  - default: `false`
+  - fallback only affects interpreter command selection for venv creation; project installation may still fail if the fallback interpreter does not satisfy project metadata such as `requires-python`
 
 ### `[rust]`
 - `toolchain`
@@ -228,15 +263,22 @@ Arbitrary string key-value pairs for path and content templates.
 ### Package manager detection
 Python package manager auto-detection currently works like this:
 1. if `uv` is installed, use `uv`
-2. else if `python<language_version>` is installed, use `pip`
+2. else for pip:
+   - if `[python.pip].version_fallback = false`, require `python<language_version>`
+   - if `[python.pip].version_fallback = true`, accept any of:
+     - `python<language_version>`
+     - `python<major>`
+     - `python`
 3. else no Python setup is performed
 
 ### Python scope detection
 Python `project_scope = "auto"` resolves as follows:
 - `install`
-  - when both of these exist in the rendered target:
-    - `pyproject.toml`
+  - when `pyproject.toml` exists and one of these package layouts exists:
     - `src/<project_name>/__init__.py`
+    - `src/<project_name_with_dashes_replaced_by_underscores>/__init__.py`
+    - `<project_name>/__init__.py`
+    - `<project_name_with_dashes_replaced_by_underscores>/__init__.py`
 - `requirements`
   - when `pyproject.toml` exists, or `requirements.txt` exists
 - `base`
@@ -250,17 +292,16 @@ If using `uv`:
 - `base` → do nothing after rendering
 
 If using `pip`:
-- always create `.venv` with `python<version> -m venv .venv`
-- `install` → `python -m pip install -e .` plus detected dependency groups
-- `requirements` → install from `requirements.txt`
-- if `requirements.txt` is missing but `pyproject.toml` exists, Plato may generate
-  `.plato/requirements.txt` from `project.dependencies`, dependency groups, and
-  legacy `tool.uv.dev-dependencies`
+- create `.venv` with `python<version> -m venv .venv`
+- when `[python.pip].version_fallback = true`, venv creation falls back to `python<major>` and then `python`
+- `install` → `<target>/.venv/bin/python -m pip install -e .` plus detected dependency groups
+- `requirements` → `<target>/.venv/bin/python -m pip install -r <requirements file>`
+- if `requirements.txt` is missing but `pyproject.toml` exists, Plato may generate `.plato/requirements.txt` from `project.dependencies`, dependency groups, and legacy `tool.uv.dev-dependencies`
 
 Additional Python behavior:
 - Plato may generate a minimal `README.md` when needed for package installation
-- current Python support is focused on modern `pyproject.toml` projects and
-  `requirements.txt` workflows
+- Plato may generate `.plato/requirements.txt` when pip needs requirements but only `pyproject.toml` metadata exists
+- current Python support is focused on modern `pyproject.toml` projects and `requirements.txt` workflows
 
 ### Python template example: modern uv project
 
