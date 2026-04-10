@@ -140,9 +140,9 @@ fn run_workspace_setup(exec_ctx: &ExecutionContext) -> Result<()> {
     Ok(())
 }
 
-fn run_language_setup<I>(exec_ctx: &ExecutionContext, language_setup: I) -> Result<()>
+fn run_language_setup<L>(exec_ctx: &ExecutionContext, language_setup: L) -> Result<()>
 where
-    I: LanguageSetup,
+    L: LanguageSetup,
 {
     let language_ctx = LanguageSetupContext::from(exec_ctx);
     language_setup.setup(language_ctx)?;
