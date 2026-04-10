@@ -2,9 +2,8 @@ use anyhow::Result;
 use std::path::PathBuf;
 
 use crate::{
-    core::config::Config,
-    core::config::{PythonPackageManagerConfig, PythonProjectScopeConfig},
-    languages::SetupContext,
+    core::config::{Config, PythonPackageManagerConfig, PythonProjectScopeConfig},
+    languages::LanguageSetupContext,
 };
 
 use self::shared::{get_python_package_manager, get_python_project_scope};
@@ -36,10 +35,10 @@ pub struct PythonSetupContext {
     pub package_manager: PythonPackageManager,
 }
 
-impl TryFrom<SetupContext> for PythonSetupContext {
+impl TryFrom<LanguageSetupContext> for PythonSetupContext {
     type Error = anyhow::Error;
 
-    fn try_from(ctx: SetupContext) -> Result<Self, Self::Error> {
+    fn try_from(ctx: LanguageSetupContext) -> Result<Self, Self::Error> {
         let project_scope = match ctx.config.python.project_scope {
             PythonProjectScopeConfig::Auto => {
                 get_python_project_scope(&ctx.target_path, &ctx.project_name)

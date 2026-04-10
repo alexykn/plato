@@ -1,6 +1,6 @@
 use crate::Config;
 use crate::core::config::{RustProjectScopeConfig, RustProjectTypeConfig};
-use crate::languages::SetupContext;
+use crate::languages::LanguageSetupContext;
 use crate::languages::rust::shared::{
     get_rust_package_manager, get_rust_project_scope, get_rust_project_type,
 };
@@ -39,9 +39,9 @@ pub struct RustSetupContext {
     pub package_manager: RustPackageManager,
 }
 
-impl TryFrom<SetupContext> for RustSetupContext {
+impl TryFrom<LanguageSetupContext> for RustSetupContext {
     type Error = anyhow::Error;
-    fn try_from(ctx: SetupContext) -> Result<Self, Self::Error> {
+    fn try_from(ctx: LanguageSetupContext) -> Result<Self, Self::Error> {
         let package_manager = get_rust_package_manager(); // returns cargo if installed or bails
         let project_scope = match ctx.config.rust.project_scope {
             RustProjectScopeConfig::Auto => get_rust_project_scope(&ctx.target_path),

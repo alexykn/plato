@@ -16,16 +16,17 @@ use crate::languages::python::{
 pub mod python;
 pub mod rust;
 
-pub struct SetupContext {
+#[derive(Debug, Clone)]
+pub struct LanguageSetupContext {
     pub project_name: String,
     pub source_path: PathBuf,
     pub target_path: PathBuf,
     pub config: Config,
 }
 
-impl From<&ExecutionContext> for SetupContext {
+impl From<&ExecutionContext> for LanguageSetupContext {
     fn from(ctx: &ExecutionContext) -> Self {
-        SetupContext {
+        LanguageSetupContext {
             project_name: ctx.project_name.clone(),
             source_path: ctx.source_path.clone(),
             target_path: ctx.target_path.clone(),
@@ -35,13 +36,13 @@ impl From<&ExecutionContext> for SetupContext {
 }
 
 pub(crate) trait LanguageSetup {
-    fn setup(&self, ctx: SetupContext) -> Result<()>;
+    fn setup(&self, ctx: LanguageSetupContext) -> Result<()>;
 }
 
 pub(crate) struct PythonSetup;
 
 impl LanguageSetup for PythonSetup {
-    fn setup(&self, ctx: SetupContext) -> Result<()> {
+    fn setup(&self, ctx: LanguageSetupContext) -> Result<()> {
         let ctx = PythonSetupContext::try_from(ctx)?;
         match ctx.package_manager {
             PythonPackageManager::Uv => UvPackageManagerSetup.setup(ctx),
@@ -60,7 +61,7 @@ impl LanguageSetup for PythonSetup {
 pub(crate) struct RustSetup;
 
 impl LanguageSetup for RustSetup {
-    fn setup(&self, ctx: SetupContext) -> Result<()> {
+    fn setup(&self, ctx: LanguageSetupContext) -> Result<()> {
         let ctx = RustSetupContext::try_from(ctx)?;
         match ctx.package_manager {
             RustPackageManager::Cargo => CargoPackageManagerSetup.setup(ctx),

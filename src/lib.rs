@@ -10,7 +10,7 @@ pub mod workspace;
 use crate::core::config::{Config, TemplateLanguage, get_config, get_global_plato_dir};
 use crate::core::guard::ProjectGuard;
 use crate::core::registry::TemplateRegistry;
-use crate::languages::{LanguageSetup, PythonSetup, RustSetup, SetupContext};
+use crate::languages::{LanguageSetup, LanguageSetupContext, PythonSetup, RustSetup};
 use crate::util::{open_config_file, setup_git};
 use crate::workspace::setup_base_workspace;
 
@@ -21,12 +21,13 @@ pub struct RunOptions {
     pub path: Option<PathBuf>,
 }
 
+#[derive(Debug, Clone)]
 struct ExecutionContext {
-    pub project_name: String,
-    pub force: bool,
-    pub source_path: PathBuf,
-    pub target_path: PathBuf,
-    pub source_config: Config,
+    project_name: String,
+    force: bool,
+    source_path: PathBuf,
+    target_path: PathBuf,
+    source_config: Config,
 }
 
 impl TryFrom<RunOptions> for ExecutionContext {
@@ -105,32 +106,45 @@ pub fn display_templates() -> Result<()> {
 /// Returns an error if argument parsing, template loading, filesystem access,
 /// template rendering, or project setup fails.
 pub fn run(options: RunOptions) -> Result<()> {
-    let ctx = ExecutionContext::try_from(options)?;
-    if !ctx.force && ctx.target_path.exists() {
-        bail!(
-            "Target path {} already exists. quitting.",
-            ctx.target_path.display()
-        )
-    }
-    let mut guard = ProjectGuard::new(ctx.target_path.clone());
-    let should_setup_git: bool = ctx.source_config.plato.setup_git;
-    let setup_ctx = SetupContext::from(&ctx);
-    create_dir_all(&ctx.target_path)?;
-    setup_base_workspace(
-        &ctx.project_name,
-        &ctx.source_config,
-        &ctx.source_path,
-        &ctx.target_path,
-    )?;
+    let exec_ctx = ExecutionContext::try_from(options)?;
+    let should_setup_git: bool = exec_ctx.source_config.plato.setup_git;
+    let mut guard = ProjectGuard::new(exec_ctx.target_path.clone());
 
-    match &ctx.source_config.plato.template_language {
-        TemplateLanguage::Python => PythonSetup.setup(setup_ctx),
-        TemplateLanguage::Rust => RustSetup.setup(setup_ctx),
+    run_workspace_setup(&exec_ctx)?;
+    match &exec_ctx.source_config.plato.template_language {
+        TemplateLanguage::Python => run_language_setup(&exec_ctx, PythonSetup),
+        TemplateLanguage::Rust => run_language_setup(&exec_ctx, RustSetup),
         TemplateLanguage::Base => Ok(()),
     }?;
     if should_setup_git {
-        setup_git(&ctx.target_path)?;
+        setup_git(&exec_ctx.target_path)?;
     }
     guard.release();
+    Ok(())
+}
+
+fn run_workspace_setup(exec_ctx: &ExecutionContext) -> Result<()> {
+    if !exec_ctx.force && exec_ctx.target_path.exists() {
+        bail!(
+            "Target path {} already exists. quitting.",
+            &exec_ctx.target_path.display()
+        )
+    }
+    create_dir_all(&exec_ctx.target_path)?;
+    setup_base_workspace(
+        &exec_ctx.project_name,
+        &exec_ctx.source_config,
+        &exec_ctx.source_path,
+        &exec_ctx.target_path,
+    )?;
+    Ok(())
+}
+
+fn run_language_setup<I>(exec_ctx: &ExecutionContext, language_setup: I) -> Result<()>
+where
+    I: LanguageSetup,
+{
+    let language_ctx = LanguageSetupContext::from(exec_ctx);
+    language_setup.setup(language_ctx)?;
     Ok(())
 }
