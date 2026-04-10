@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use regex::Regex;
 use std::env::var;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::Path;
 use std::process::Command;
 use std::sync::LazyLock;
@@ -42,7 +42,7 @@ pub fn open_config_file(template_path: &Path) -> Result<()> {
 }
 
 pub(crate) fn setup_git(target: &Path) -> Result<()> {
-    execute_command("git", &["init"], target)?;
+    execute_command("git", ["init"], target)?;
     Ok(())
 }
 
@@ -50,7 +50,11 @@ pub(crate) fn is_installed(cmd: &str) -> bool {
     Command::new(cmd).arg("--help").output().is_ok()
 }
 
-pub(crate) fn execute_command(cmd: &str, args: &[&str], target: &Path) -> Result<()> {
+pub(crate) fn execute_command<I, S>(cmd: &str, args: I, target: &Path) -> Result<()>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
     let cmd_name = Path::new(cmd)
         .file_name()
         .and_then(|result| result.to_str())
