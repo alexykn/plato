@@ -49,9 +49,10 @@ impl TryFrom<SetupContext> for PythonSetupContext {
             PythonProjectScopeConfig::Requirements => PythonProjectScope::Requirements,
         };
         let package_manager = match ctx.config.python.package_manager {
-            PythonPackageManagerConfig::Auto => {
-                get_python_package_manager(&ctx.config.python.language_version)
-            }
+            PythonPackageManagerConfig::Auto => get_python_package_manager(
+                &ctx.config.python.language_version,
+                ctx.config.python.pip_config.version_fallback,
+            ),
             PythonPackageManagerConfig::Uv => PythonPackageManager::Uv,
             PythonPackageManagerConfig::Pip => PythonPackageManager::Pip,
         };

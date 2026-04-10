@@ -100,6 +100,14 @@ pub struct PythonConfig {
     pub package_manager: PythonPackageManagerConfig,
     #[serde(default)]
     pub project_scope: PythonProjectScopeConfig,
+    #[serde(default, rename = "pip")]
+    pub pip_config: PipConfig,
+}
+
+#[derive(Deserialize, Debug, Default, Clone)]
+pub struct PipConfig {
+    #[serde(default)]
+    pub version_fallback: bool,
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]

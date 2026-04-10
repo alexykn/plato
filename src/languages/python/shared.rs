@@ -64,18 +64,28 @@ pub(crate) fn get_python_project_scope(target: &Path, project_name: &str) -> Pyt
 // Keep auto-detection quiet here: pip command fallback warnings are emitted in
 // `PipPackageManagerSetup::setup`, so logging them again at detection time would duplicate output.
 //
-pub(crate) fn get_python_package_manager(version: &str) -> PythonPackageManager {
+pub(crate) fn get_python_package_manager(
+    version: &str,
+    pip_fallback: bool,
+) -> PythonPackageManager {
     if is_installed("uv") {
         return PythonPackageManager::Uv;
     }
     let end = version.find('.').unwrap_or(version.len());
     let major_version = &version[..end];
-    if is_installed(&format!("python{version}"))
-        || is_installed(&format!("python{major_version}"))
-        || is_installed("python")
+
+    if !pip_fallback && is_installed(&format!("python{version}")) {
+        return PythonPackageManager::Pip;
+    }
+
+    if pip_fallback
+        && (is_installed(&format!("python{version}"))
+            || is_installed(&format!("python{major_version}"))
+            || is_installed("python"))
     {
         return PythonPackageManager::Pip;
     }
+
     eprintln!("No supported python package manager found for 'project_scope: auto'.");
     PythonPackageManager::None
 }
