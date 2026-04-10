@@ -1,6 +1,6 @@
-use super::shared::build_python_versioned_commands;
-use anyhow::{Context, Result, bail};
-use std::path::{Path, PathBuf};
+use super::shared::{build_python_versioned_commands, get_requirements_file_path};
+use anyhow::{Context, Result};
+use std::path::Path;
 
 static PYTHON_VENV_CREATION_ARGS: [&str; 3] = ["-m", "venv", ".venv"];
 static RELATIVE_VENV_PATH: &str = ".venv/bin/python";
@@ -17,7 +17,7 @@ fn get_pip_install_args() -> Vec<String> {
 use crate::{
     languages::python::{
         PythonPackageManagerSetup, PythonProjectScope, PythonSetupContext,
-        shared::{dev_groups_from_pyproject, ensure_readme, ensure_requirements},
+        shared::{dev_groups_from_pyproject, ensure_readme},
     },
     util::execute_command,
 };
@@ -27,17 +27,14 @@ pub(crate) struct PipPackageManagerSetup;
 impl PythonPackageManagerSetup for PipPackageManagerSetup {
     fn setup(&self, ctx: PythonSetupContext) -> Result<()> {
         if ctx.config.python.pip_config.version_fallback {
-            Self::pip_setup_venv_with_version_fallback(
-                &ctx.config.python.language_version,
-                &ctx.target_path,
-            )?;
+            Self::setup_venv_with_fallback(&ctx.config.python.language_version, &ctx.target_path)?;
         } else {
-            Self::pip_setup_venv(&ctx.config.python.language_version, &ctx.target_path)?;
+            Self::setup_venv(&ctx.config.python.language_version, &ctx.target_path)?;
         }
 
         match ctx.project_scope {
-            PythonProjectScope::Install => Self::pip_install_project(&ctx.target_path),
-            PythonProjectScope::Requirements => Self::pip_install_requirements(&ctx.target_path),
+            PythonProjectScope::Install => Self::install_project(&ctx.target_path),
+            PythonProjectScope::Requirements => Self::install_requirements(&ctx.target_path),
             PythonProjectScope::Base => Ok::<(), anyhow::Error>(()),
         }?;
         Ok(())
@@ -45,13 +42,13 @@ impl PythonPackageManagerSetup for PipPackageManagerSetup {
 }
 
 impl PipPackageManagerSetup {
-    fn pip_setup_venv(version: &str, target: &Path) -> Result<()> {
+    fn setup_venv(version: &str, target: &Path) -> Result<()> {
         let python_command = format!("python{version}");
         execute_command(&python_command, PYTHON_VENV_CREATION_ARGS, target)?;
         Ok(())
     }
 
-    fn pip_setup_venv_with_version_fallback(version: &str, target: &Path) -> Result<()> {
+    fn setup_venv_with_fallback(version: &str, target: &Path) -> Result<()> {
         let python_commands = build_python_versioned_commands(version);
 
         execute_command(
@@ -82,7 +79,7 @@ impl PipPackageManagerSetup {
         Ok(())
     }
 
-    fn pip_install_project(target: &Path) -> Result<()> {
+    fn install_project(target: &Path) -> Result<()> {
         let python_pip_exec = target.join(RELATIVE_VENV_PATH);
         let dev_groups = dev_groups_from_pyproject(target)?;
         let mut pip_install_args = get_pip_install_args();
@@ -101,7 +98,7 @@ impl PipPackageManagerSetup {
         Ok(())
     }
 
-    fn pip_install_requirements(target: &Path) -> Result<()> {
+    fn install_requirements(target: &Path) -> Result<()> {
         let python_pip_exec = target.join(RELATIVE_VENV_PATH);
         let requirements_file = get_requirements_file_path(target)?
             .to_string_lossy()
@@ -116,17 +113,4 @@ impl PipPackageManagerSetup {
         )?;
         Ok(())
     }
-}
-
-fn get_requirements_file_path(target: &Path) -> Result<PathBuf> {
-    let requirements_file = match target.join("requirements.txt").exists() {
-        true => target.join("requirements.txt"),
-        false if ensure_requirements(target)? => target.join(".plato/requirements.txt"),
-        false => {
-            bail!(
-                "Could not find or generate requirements.txt for selected project scope 'requirements'"
-            );
-        }
-    };
-    Ok(requirements_file)
 }

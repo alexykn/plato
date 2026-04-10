@@ -4,7 +4,7 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub(super) struct PythonVersionedCommands {
@@ -185,4 +185,17 @@ pub(super) fn build_python_versioned_commands(version: &str) -> PythonVersionedC
         major: python_major,
         unknown: python_unknown,
     }
+}
+
+pub(super) fn get_requirements_file_path(target: &Path) -> Result<PathBuf> {
+    let requirements_file = match target.join("requirements.txt").exists() {
+        true => target.join("requirements.txt"),
+        false if ensure_requirements(target)? => target.join(".plato/requirements.txt"),
+        false => {
+            bail!(
+                "Could not find or generate requirements.txt for selected project scope 'requirements'"
+            );
+        }
+    };
+    Ok(requirements_file)
 }
