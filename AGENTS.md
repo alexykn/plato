@@ -7,7 +7,7 @@ If a task explicitly asks for something else, follow the task and note the devia
 
 ### Always
 - Preserve existing behavior unless the task explicitly requires a change.
-- Make the smallest correct change possible unless the task explicitly requires more.
+- Keep changes goal-focused and aligned with the existing architecture; avoid premature abstraction, but use generics and other type features when they clearly improve the design.
 - Run the relevant linter and type checker on changed files before finishing.
 
 ### Ask First
@@ -25,9 +25,8 @@ If a task explicitly asks for something else, follow the task and note the devia
 ## Core Principles
 
 - Prefer composition and explicit dependency injection.
-- Keep code readable and maintainable for humans and future agents.
-- Flatten control flow; avoid deep nesting.
-- Separate pure logic from I/O and side effects.
+- Keep code readable and maintainable.
+- Flatten control flow and separate pure logic from I/O and side effects.
 
 ## Workflow & Verification
 
@@ -39,7 +38,6 @@ If a task explicitly asks for something else, follow the task and note the devia
 ## Logic & Control Flow
 
 ### Do
-- Flatten control flow: prefer at most 2 levels of nesting, 3 absolute max. Do not count function/method declarations or equivalent structural blocks toward nesting depth.
 - Use guard clauses and fail fast.
 - Invert conditions when it improves readability.
 - Evaluate specific cases first; leave default behavior at the bottom.
@@ -53,15 +51,13 @@ If a task explicitly asks for something else, follow the task and note the devia
 ## Architecture & Design
 
 ### Do
-- Prefer the smallest correct change.
-- Avoid long parameter lists; if a function/method needs more than 3–4 arguments, group related inputs into logical structures.
-- Prefer explicit domain models, typed structures, or well-defined data containers over massive unstructured maps/objects.
-- Use composition + explicit constructor or parameter injection, especially in orchestration/coordinating layers.
-- Use interfaces, abstract base types, or equivalent language-native contract mechanisms when components need to be swappable.
-- Split files, classes, modules, or functions before they violate single responsibility.
+- Keep changes simple, cohesive, and focused on the goal.
+- Avoid long parameter lists; group related inputs when needed.
+- Prefer explicit domain models, typed structures, or well-defined data containers over unstructured bags of data.
+- Use composition + explicit constructor or parameter injection.
+- Use interfaces, abstract base types, or equivalent contracts when components need to be swappable.
 - Keep modules/files tightly scoped and cohesive.
-- Keep pure logic separate from network, file I/O, database access, and other side effects.
-- Extract and reorganize instead of blindly appending to growing structures.
+- Keep pure logic separate from side effects.
 
 ### Don’t
 - Add abstraction layers unless they clearly reduce real complexity.
@@ -72,12 +68,11 @@ If a task explicitly asks for something else, follow the task and note the devia
 ## Types, Contracts & Documentation
 
 ### Do
-- Prefer the language’s modern native type/contract features where available.
-- Use generic/advanced typing features only when they add clear value.
-- Model complex state with explicit, well-defined structures instead of anonymous bags of data.
-- Add precise type annotations, interface definitions, or equivalent contracts on public APIs and non-trivial values where the language/tooling supports them.
-- Write concise docstrings/comments/docs for public APIs when they clarify intent, side effects, or invariants.
-- Add comments explaining why for complex or non-obvious decisions.
+- Prefer modern native type/contract features where available.
+- Model complex state with explicit, well-defined structures.
+- Add precise type annotations or equivalent contracts on public APIs and non-trivial values where the language/tooling supports them.
+- Write concise docs/comments when they clarify intent.
+- Use generics and advanced typing only when they clearly improve the design.
 
 ### Don’t
 - Overuse generics, indirection, or type machinery without clear payoff.
@@ -86,12 +81,11 @@ If a task explicitly asks for something else, follow the task and note the devia
 ## Reliability, I/O & Errors
 
 ### Do
-- Validate inputs at boundaries.
-- Make failure modes explicit and fail fast.
+- Validate inputs at boundaries and make failure modes explicit.
 - Use explicit timeouts on network/external calls.
 - Clean up resources deterministically.
 - Add contextual logging at key boundaries and failure points; never log secrets, keys, or PII.
-- Handle transient failures gracefully with retries only when appropriate.
+- Handle transient failures gracefully when appropriate.
 
 ### Don’t
 - Swallow exceptions/errors silently.
@@ -103,7 +97,7 @@ If a task explicitly asks for something else, follow the task and note the devia
 - Inject configuration and secrets via environment variables or config files; never hardcode them.
 - Prefer standard library or built-in solutions when sufficient.
 - Use established ecosystem standards when they clearly reduce boilerplate or improve maintainability.
-- Add third-party dependencies only when they provide clear, ongoing value in maintainability or functionality.
+- Add third-party dependencies only when they provide clear, ongoing value.
 
 ### Don’t
 - Add dependencies just because they are popular or convenient.
@@ -123,6 +117,23 @@ If a task explicitly asks for something else, follow the task and note the devia
 - Refactor purely for aesthetics.
 - Change behavior silently.
 - Modify files outside the explicit scope of the task.
+
+## Subagents
+
+Use subagents when they reduce context switching or help keep work focused.
+
+Preferred agents:
+- `scout` — quick repo reconnaissance and context gathering
+- `worker` — implementation and edits
+- `delegate` — lightweight one-off tasks that should just return text
+- `reviewer` — validation, review, and catching mistakes
+
+Use the other built-in agents only when they clearly fit the job:
+- `planner` — for explicit implementation planning
+- `context-builder` — for broader requirement/context synthesis
+- `researcher` — for web research or external source gathering
+
+Default to the most focused agent for the task.
 
 ## Python
 
