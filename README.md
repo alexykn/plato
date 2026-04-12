@@ -109,7 +109,7 @@ File contents use MiniJinja syntax:
 {{ toolchain }}
 ```
 
-Custom values from `[template.context]` are available in both path rendering and file content templates.
+Custom values from `[template.context]` are available in both path rendering and file content templates. Built-in context values (`project_name`, `language_version`, `toolchain`) are merged with `[template.context]`; when the same key exists in both, `[template.context]` takes precedence.
 
 Example:
 

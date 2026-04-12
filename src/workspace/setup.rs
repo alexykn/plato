@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use walkdir::WalkDir;
 
+use crate::workspace::TemplateContext;
+
 pub(crate) enum FileContent {
     BinaryLazy {
         path: PathBuf,
@@ -73,11 +75,11 @@ impl WorkspaceBuilder {
         Ok(Self { content: raw_map })
     }
 
-    pub(super) fn render_paths(self, context: &HashMap<String, String>) -> Result<Self> {
+    pub(super) fn render_paths(self, context: &TemplateContext) -> Result<Self> {
         let mut target_map = HashMap::new();
         for (rel_path, content) in self.content {
             let mut path_str = rel_path.to_string_lossy().into_owned();
-            for (keyword, replacement) in context {
+            for (keyword, replacement) in &context.context {
                 let pattern = format!("#{keyword}#");
                 path_str = path_str.replace(&pattern, replacement);
             }
