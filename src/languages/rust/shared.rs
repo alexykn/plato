@@ -3,7 +3,7 @@ use crate::languages::rust::RustProjectScope::{Base, Build, Fetch};
 use crate::languages::rust::RustProjectType::{Binary, Library};
 use crate::languages::rust::{RustPackageManager, RustProjectScope, RustProjectType};
 use crate::util::is_installed;
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::fs::{read_dir, read_to_string};
 use std::path::{Path, PathBuf};
@@ -25,9 +25,6 @@ struct CargoBin {
 }
 
 fn parse_cargo_manifest(cargo_manifest_path: &Path) -> Result<CargoManifest> {
-    if !cargo_manifest_path.exists() {
-        bail!("This shoud not have happened, how did we get here?!")
-    }
     let content = read_to_string(cargo_manifest_path).context(format!(
         "Could not Cargo.toml at {}",
         cargo_manifest_path.display()
@@ -36,7 +33,7 @@ fn parse_cargo_manifest(cargo_manifest_path: &Path) -> Result<CargoManifest> {
     Ok(cargo_manifest)
 }
 
-fn has_rust_bin_targets(target: &Path, manifest: Option<&CargoManifest>) -> bool {
+fn has_rust_bin_targets(target: &Path, manifest: &CargoManifest) -> bool {
     let bin_dir = target.join("src/bin");
 
     let has_default_bin = target.join("src/main.rs").is_file();
@@ -44,36 +41,33 @@ fn has_rust_bin_targets(target: &Path, manifest: Option<&CargoManifest>) -> bool
     let has_valid_bin_in_bin_dir = read_dir(bin_dir).is_ok_and(|entries| {
         entries.flatten().any(|entry| {
             entry.path().extension().is_some_and(|ext| {
-                matches!(ext.to_str(), Some("rs")) && entry.file_type().is_ok_and(|ft| ft.is_file())
+                ext.to_str() == Some("rs") && entry.file_type().is_ok_and(|ft| ft.is_file())
             })
         })
     });
 
-    let has_valid_bin_entries_from_manifest = manifest
-        .and_then(|manifest| manifest.bin.as_ref())
-        .is_some_and(|bins| {
-            bins.iter().any(|entry| {
-                entry.path.as_ref().is_some_and(|path| {
-                    path.extension().is_some_and(|ext| {
-                        matches!(ext.to_str(), Some("rs")) && target.join(path).is_file()
-                    })
-                })
+    let has_valid_bin_entries_from_manifest = manifest.bin.as_ref().is_some_and(|bins| {
+        bins.iter().any(|entry| {
+            entry.path.as_ref().is_some_and(|path| {
+                path.extension()
+                    .is_some_and(|ext| ext.to_str() == Some("rs") && target.join(path).is_file())
             })
-        });
+        })
+    });
 
     has_default_bin || has_valid_bin_in_bin_dir || has_valid_bin_entries_from_manifest
 }
 
-fn has_rust_lib_targets(target: &Path, manifest: Option<&CargoManifest>) -> bool {
+fn has_rust_lib_targets(target: &Path, manifest: &CargoManifest) -> bool {
     let has_default_lib = target.join("src/lib.rs").is_file();
 
     let has_valid_lib_entry_from_manifest = manifest
-        .and_then(|manifest| manifest.lib.as_ref())
+        .lib
+        .as_ref()
         .and_then(|lib| lib.path.as_ref())
         .is_some_and(|path| {
-            path.extension().is_some_and(|ext| {
-                matches!(ext.to_str(), Some("rs")) && target.join(path).is_file()
-            })
+            path.extension()
+                .is_some_and(|ext| ext.to_str() == Some("rs") && target.join(path).is_file())
         });
 
     has_default_lib || has_valid_lib_entry_from_manifest
@@ -81,13 +75,13 @@ fn has_rust_lib_targets(target: &Path, manifest: Option<&CargoManifest>) -> bool
 
 pub(crate) fn get_rust_project_scope(target: &Path) -> Result<RustProjectScope> {
     let cargo_manifest_path = target.join("Cargo.toml");
-    let cargo_manifest = parse_cargo_manifest(&cargo_manifest_path)?;
-
     if !cargo_manifest_path.exists() {
         return Ok(Base);
     }
-    if has_rust_lib_targets(target, Some(&cargo_manifest))
-        || has_rust_bin_targets(target, Some(&cargo_manifest))
+
+    let cargo_manifest = parse_cargo_manifest(&cargo_manifest_path)?;
+    if has_rust_lib_targets(target, &cargo_manifest)
+        || has_rust_bin_targets(target, &cargo_manifest)
     {
         return Ok(Build);
     }
@@ -96,14 +90,14 @@ pub(crate) fn get_rust_project_scope(target: &Path) -> Result<RustProjectScope> 
 
 pub(crate) fn get_rust_project_type(target: &Path) -> Result<RustProjectType> {
     let cargo_manifest_path = target.join("Cargo.toml");
-    let cargo_manifest = parse_cargo_manifest(&cargo_manifest_path)?;
-
     if !cargo_manifest_path.exists() {
         return Ok(Binary);
     }
-    if has_rust_bin_targets(target, Some(&cargo_manifest)) {
+
+    let cargo_manifest = parse_cargo_manifest(&cargo_manifest_path)?;
+    if has_rust_bin_targets(target, &cargo_manifest) {
         Ok(Binary)
-    } else if has_rust_lib_targets(target, Some(&cargo_manifest)) {
+    } else if has_rust_lib_targets(target, &cargo_manifest) {
         Ok(Library)
     } else {
         Ok(Binary)
