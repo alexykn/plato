@@ -1,7 +1,8 @@
 use anyhow::{Context, Result, bail};
 use regex::Regex;
+use shell_words;
 use std::env::var;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
 use std::path::Path;
 use std::process::Command;
 use std::sync::LazyLock;
@@ -10,18 +11,23 @@ static ALLOWED_CMD_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(git|cargo|uv|python\d*(?:\.\d+)*)$").expect("Invalid regex pattern")
 });
 
-fn get_default_editor() -> OsString {
-    if let Ok(visual) = var("VISUAL")
-        && !visual.trim().is_empty()
-    {
-        return visual.into();
-    }
-    if let Ok(editor) = var("EDITOR")
-        && !editor.trim().is_empty()
-    {
-        return editor.into();
-    }
-    "nano".into()
+fn get_default_editor() -> Result<(String, Vec<String>)> {
+    let visual = var("VISUAL").unwrap_or_default();
+    let editor = var("EDITOR").unwrap_or_default();
+    let raw_cmd = if !visual.trim().is_empty() {
+        &visual
+    } else if !editor.trim().is_empty() {
+        &editor
+    } else {
+        "nano"
+    };
+    let mut parts = shell_words::split(raw_cmd)
+        .context("Could not parse EDITOR/VISUAL command.")?
+        .into_iter();
+
+    let command = parts.next().unwrap_or_else(|| "nano".to_string());
+    let args = parts.collect();
+    Ok((command, args))
 }
 
 /// Opens the template's `plato.toml` in the user's editor.
@@ -30,9 +36,10 @@ fn get_default_editor() -> OsString {
 /// Returns an error if the editor cannot be started or exits unsuccessfully.
 pub fn open_config_file(template_path: &Path) -> Result<()> {
     let config_file_path = template_path.join("plato.toml");
-    let editor = get_default_editor();
+    let (command, mut args) = get_default_editor()?;
 
-    let mut child = Command::new(editor).arg(config_file_path).spawn()?;
+    args.push(config_file_path.to_string_lossy().to_string());
+    let mut child = Command::new(command).args(args).spawn()?;
     let status = child.wait()?;
     if !status.success() {
         bail!("Editor exited with non-zero exit code.")

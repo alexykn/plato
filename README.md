@@ -206,6 +206,8 @@ cargo_init = false            # default: false
 - `plato config <template_name>`
   - opens the template’s `plato.toml` in your editor
   - prefers `$VISUAL`, then `$EDITOR`, then falls back to `nano`
+  - parses `$VISUAL` / `$EDITOR` as shell-style words so values like `code -w` work
+  - parsing is intentionally limited to shell-like word splitting and quote removal; shell features such as variable expansion, command substitution, operators, and glob expansion are not interpreted
 - `plato list`
   - prints discovered templates from `~/.config/plato` and any configured `extra_dirs`
   - marks templates missing `plato.toml`
