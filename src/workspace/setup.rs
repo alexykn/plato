@@ -4,7 +4,8 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::fs::{create_dir_all, read, read_to_string, write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
+use std::rc::Rc;
+use std::sync::OnceLock;
 use walkdir::WalkDir;
 
 use crate::workspace::TemplateContext;
@@ -12,10 +13,10 @@ use crate::workspace::TemplateContext;
 pub(crate) enum FileContent {
     BinaryLazy {
         path: PathBuf,
-        cache: OnceLock<Arc<[u8]>>,
+        cache: OnceLock<Rc<[u8]>>,
     },
-    Binary(Arc<[u8]>),
-    Template(Arc<str>),
+    Binary(Rc<[u8]>),
+    Template(Rc<str>),
     None,
 }
 
@@ -62,7 +63,7 @@ impl WorkspaceBuilder {
                         let text = read_to_string(path).with_context(|| {
                             format!("Failed to read template {}", path.display())
                         })?;
-                        FileContent::Template(Arc::<str>::from(text))
+                        FileContent::Template(Rc::<str>::from(text))
                     }
                     _ => FileContent::BinaryLazy {
                         path: path.to_path_buf(),
@@ -111,7 +112,7 @@ impl WorkspaceBuilder {
                     if rendered_map
                         .insert(
                             new_path.clone(),
-                            FileContent::Binary(Arc::from(rendered.into_bytes())),
+                            FileContent::Binary(Rc::from(rendered.into_bytes())),
                         )
                         .is_some()
                     {
@@ -142,7 +143,7 @@ impl WorkspaceBuilder {
                 } => {
                     if cache.get().is_none() {
                         let bytes =
-                            read(&source_path).map(Arc::<[u8]>::from).with_context(|| {
+                            read(&source_path).map(Rc::<[u8]>::from).with_context(|| {
                                 format!("Failed to read binary file {}", source_path.display())
                             })?;
                         let _ = cache.set(bytes);
