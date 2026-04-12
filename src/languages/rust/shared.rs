@@ -79,34 +79,34 @@ fn has_rust_lib_targets(target: &Path, manifest: Option<&CargoManifest>) -> bool
     has_default_lib || has_valid_lib_entry_from_manifest
 }
 
-pub(crate) fn get_rust_project_scope(target: &Path) -> RustProjectScope {
+pub(crate) fn get_rust_project_scope(target: &Path) -> Result<RustProjectScope> {
     let cargo_manifest_path = target.join("Cargo.toml");
-    let cargo_manifest = parse_cargo_manifest(&cargo_manifest_path).ok();
+    let cargo_manifest = parse_cargo_manifest(&cargo_manifest_path)?;
 
     if !cargo_manifest_path.exists() {
-        return Base;
+        return Ok(Base);
     }
-    if has_rust_lib_targets(target, cargo_manifest.as_ref())
-        || has_rust_bin_targets(target, cargo_manifest.as_ref())
+    if has_rust_lib_targets(target, Some(&cargo_manifest))
+        || has_rust_bin_targets(target, Some(&cargo_manifest))
     {
-        return Build;
+        return Ok(Build);
     }
-    Fetch
+    Ok(Fetch)
 }
 
-pub(crate) fn get_rust_project_type(target: &Path) -> RustProjectType {
+pub(crate) fn get_rust_project_type(target: &Path) -> Result<RustProjectType> {
     let cargo_manifest_path = target.join("Cargo.toml");
-    let cargo_manifest = parse_cargo_manifest(&cargo_manifest_path).ok();
+    let cargo_manifest = parse_cargo_manifest(&cargo_manifest_path)?;
 
     if !cargo_manifest_path.exists() {
-        return Binary;
+        return Ok(Binary);
     }
-    if has_rust_bin_targets(target, cargo_manifest.as_ref()) {
-        Binary
-    } else if has_rust_lib_targets(target, cargo_manifest.as_ref()) {
-        Library
+    if has_rust_bin_targets(target, Some(&cargo_manifest)) {
+        Ok(Binary)
+    } else if has_rust_lib_targets(target, Some(&cargo_manifest)) {
+        Ok(Library)
     } else {
-        Binary
+        Ok(Binary)
     }
 }
 

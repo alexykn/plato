@@ -112,8 +112,8 @@ pub fn run(options: RunOptions) -> Result<()> {
 
     run_workspace_setup(&exec_ctx)?;
     match &exec_ctx.source_config.plato.template_language {
-        TemplateLanguage::Python => run_language_setup(&exec_ctx, PythonSetup),
-        TemplateLanguage::Rust => run_language_setup(&exec_ctx, RustSetup),
+        TemplateLanguage::Python => run_language_setup(&exec_ctx, &PythonSetup),
+        TemplateLanguage::Rust => run_language_setup(&exec_ctx, &RustSetup),
         TemplateLanguage::Base => Ok(()),
     }?;
     if should_setup_git {
@@ -140,7 +140,7 @@ fn run_workspace_setup(exec_ctx: &ExecutionContext) -> Result<()> {
     Ok(())
 }
 
-fn run_language_setup<L>(exec_ctx: &ExecutionContext, language_setup: L) -> Result<()>
+fn run_language_setup<L>(exec_ctx: &ExecutionContext, language_setup: &L) -> Result<()>
 where
     L: LanguageSetup,
 {

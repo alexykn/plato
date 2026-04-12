@@ -44,13 +44,13 @@ impl TryFrom<LanguageSetupContext> for RustSetupContext {
     fn try_from(ctx: LanguageSetupContext) -> Result<Self, Self::Error> {
         let package_manager = get_rust_package_manager(); // returns cargo if installed or bails
         let project_scope = match ctx.config.rust.project_scope {
-            RustProjectScopeConfig::Auto => get_rust_project_scope(&ctx.target_path),
+            RustProjectScopeConfig::Auto => get_rust_project_scope(&ctx.target_path)?,
             RustProjectScopeConfig::Base => RustProjectScope::Base,
             RustProjectScopeConfig::Build => RustProjectScope::Build,
             RustProjectScopeConfig::Fetch => RustProjectScope::Fetch,
         };
         let project_type = match ctx.config.rust.project_type {
-            RustProjectTypeConfig::Auto => get_rust_project_type(&ctx.target_path),
+            RustProjectTypeConfig::Auto => get_rust_project_type(&ctx.target_path)?,
             RustProjectTypeConfig::Binary => RustProjectType::Binary,
             RustProjectTypeConfig::Library => RustProjectType::Library,
         };
