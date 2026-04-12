@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -47,24 +47,18 @@ fn map_args(
 ) -> Result<(Option<String>, String)> {
     if path.is_some() {
         if project_name.is_some() {
-            anyhow::bail!(
-                "With --path, init expects exactly one positional argument: <PROJECT_NAME>"
-            );
+            bail!("With --path, init expects exactly one positional argument: <PROJECT_NAME>");
         }
         let project_name = template_name.ok_or_else(|| {
-            anyhow::anyhow!(
-                "With --path, init expects exactly one positional argument: <PROJECT_NAME>"
-            )
+            anyhow!("With --path, init expects exactly one positional argument: <PROJECT_NAME>")
         })?;
         return Ok((None, project_name));
     }
 
-    let template_name = template_name.ok_or_else(|| {
-        anyhow::anyhow!("Without --path, init expects <TEMPLATE_NAME> <PROJECT_NAME>")
-    })?;
-    let project_name = project_name.ok_or_else(|| {
-        anyhow::anyhow!("Without --path, init expects <TEMPLATE_NAME> <PROJECT_NAME>")
-    })?;
+    let template_name = template_name
+        .ok_or_else(|| anyhow!("Without --path, init expects <TEMPLATE_NAME> <PROJECT_NAME>"))?;
+    let project_name = project_name
+        .ok_or_else(|| anyhow!("Without --path, init expects <TEMPLATE_NAME> <PROJECT_NAME>"))?;
     Ok((Some(template_name), project_name))
 }
 
