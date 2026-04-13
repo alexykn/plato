@@ -8,19 +8,19 @@ use crate::{
 
 use self::shared::get_python_project_scope;
 
-pub mod pip;
-pub mod shared;
-pub mod uv;
+pub(crate) mod pip;
+pub(crate) mod shared;
+pub(crate) mod uv;
 
 #[derive(Debug, Clone, Copy)]
-pub enum PythonProjectScope {
+pub(crate) enum PythonProjectScope {
     Requirements,
     Install,
     Base,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum PythonPackageManager {
+pub(crate) enum PythonPackageManager {
     Pip,
     Uv,
     None,

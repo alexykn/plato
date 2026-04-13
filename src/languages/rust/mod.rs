@@ -5,35 +5,33 @@ use crate::languages::rust::shared::{get_rust_project_scope, get_rust_project_ty
 use anyhow::Result;
 use std::path::PathBuf;
 
-pub mod cargo;
-pub mod shared;
+pub(crate) mod cargo;
+pub(crate) mod shared;
 
 #[derive(Debug, Clone, Copy)]
-pub enum RustProjectScope {
+pub(crate) enum RustProjectScope {
     Build,
     Fetch,
     Base,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum RustProjectType {
+pub(crate) enum RustProjectType {
     Binary,
     Library,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum RustPackageManager {
+pub(crate) enum RustPackageManager {
     Cargo,
     None,
 }
 
-pub struct RustSetupContext {
-    pub project_name: String,
-    pub source_path: PathBuf,
-    pub target_path: PathBuf,
-    pub config: Config,
-    pub project_scope: RustProjectScope,
-    pub project_type: RustProjectType, // This is cargo specific, there is only cargo for rust so this is fine for now
+pub(crate) struct RustSetupContext {
+    pub(crate) target_path: PathBuf,
+    pub(crate) config: Config,
+    pub(crate) project_scope: RustProjectScope,
+    pub(crate) project_type: RustProjectType, // This is cargo specific, there is only cargo for rust so this is fine for now
 }
 
 impl TryFrom<LanguageSetupContext> for RustSetupContext {
@@ -52,8 +50,6 @@ impl TryFrom<LanguageSetupContext> for RustSetupContext {
         };
 
         Ok(Self {
-            project_name: ctx.project_name,
-            source_path: ctx.source_path,
             target_path: ctx.target_path,
             config: ctx.config,
             project_scope,

@@ -1,3 +1,3 @@
-pub mod config;
-pub mod guard;
-pub mod registry;
+pub(crate) mod config;
+pub(crate) mod guard;
+pub(crate) mod registry;

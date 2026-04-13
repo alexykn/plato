@@ -8,7 +8,7 @@ use crate::{ExecutionContext, core::config::TemplateLanguage};
 
 use super::workspace::setup::WorkspaceBuilder;
 
-pub mod setup;
+pub(crate) mod setup;
 
 #[derive(Serialize, Debug, Clone)]
 pub(crate) struct TemplateContext {

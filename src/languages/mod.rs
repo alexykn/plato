@@ -15,22 +15,20 @@ use crate::languages::python::{
     PythonPackageManager, PythonPackageManagerSetup, PythonSetupContext, uv::UvPackageManagerSetup,
 };
 
-pub mod python;
-pub mod rust;
+pub(crate) mod python;
+pub(crate) mod rust;
 
 #[derive(Debug, Clone)]
-pub struct LanguageSetupContext {
-    pub project_name: String,
-    pub source_path: PathBuf,
-    pub target_path: PathBuf,
-    pub config: Config,
+pub(crate) struct LanguageSetupContext {
+    pub(crate) project_name: String,
+    pub(crate) target_path: PathBuf,
+    pub(crate) config: Config,
 }
 
 impl From<ExecutionContext> for LanguageSetupContext {
     fn from(ctx: ExecutionContext) -> Self {
         LanguageSetupContext {
             project_name: ctx.project_name,
-            source_path: ctx.source_path,
             target_path: ctx.target_path,
             config: ctx.source_config,
         }

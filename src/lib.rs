@@ -2,10 +2,10 @@ use anyhow::{Result, bail};
 use std::env::current_dir;
 use std::path::PathBuf;
 
-pub mod core;
-pub mod languages;
-pub mod util;
-pub mod workspace;
+pub(crate) mod core;
+pub(crate) mod languages;
+pub(crate) mod util;
+pub(crate) mod workspace;
 
 use crate::core::config::{Config, TemplateLanguage, get_config, get_global_plato_dir};
 use crate::core::guard::ProjectGuard;
@@ -49,7 +49,7 @@ impl TryFrom<RunOptions> for ExecutionContext {
             } else {
                 &fallback_dirs
             };
-            let registry = TemplateRegistry::build(&global_plato_dir, extra_template_dirs)?;
+            let registry = TemplateRegistry::build(&global_plato_dir, extra_template_dirs);
             let (source_path, _) = registry.get(template_name)?;
             source_path.clone()
         };
@@ -79,7 +79,7 @@ pub fn edit_config(template_name: &str) -> Result<()> {
     } else {
         &fallback_dirs
     };
-    let registry = TemplateRegistry::build(&global_plato_dir, extra_template_dirs)?;
+    let registry = TemplateRegistry::build(&global_plato_dir, extra_template_dirs);
     let selected_config = registry.get_config_path(template_name)?;
     open_config_file(selected_config)
 }
@@ -97,8 +97,9 @@ pub fn display_templates() -> Result<()> {
     } else {
         &fallback_dirs
     };
-    let registry = TemplateRegistry::build(&global_plato_dir, extra_template_dirs)?;
-    registry.display()
+    let registry = TemplateRegistry::build(&global_plato_dir, extra_template_dirs);
+    registry.display();
+    Ok(())
 }
 
 /// Run the CLI.

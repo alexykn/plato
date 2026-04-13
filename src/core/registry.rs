@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow, bail};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Component, PathBuf};
 
-pub struct TemplateRegistry {
+pub(crate) struct TemplateRegistry {
     content: HashMap<String, (PathBuf, bool)>,
 }
 
@@ -11,10 +11,7 @@ impl TemplateRegistry {
     ///
     /// # Errors
     /// Returns an error if reading template directories fails in a way that prevents building the registry.
-    pub fn build(
-        global_template_dir: &PathBuf,
-        extra_template_dirs: &Vec<PathBuf>,
-    ) -> Result<Self> {
+    pub(crate) fn build(global_template_dir: &PathBuf, extra_template_dirs: &Vec<PathBuf>) -> Self {
         let mut dirs_to_check = vec![global_template_dir];
         for dir in extra_template_dirs {
             if !dir.exists() || !dir.is_dir() {
@@ -57,14 +54,14 @@ impl TemplateRegistry {
                 Some((name, (path, valid)))
             }));
         }
-        Ok(Self { content: templates })
+        Self { content: templates }
     }
 
     /// Lists the templates in the given Plato config directory.
     ///
     /// # Errors
     /// Returns an error if the registry is invalid or cannot be displayed.
-    pub fn display(&self) -> Result<()> {
+    pub(crate) fn display(&self) {
         let mut ordered_map: BTreeMap<PathBuf, Vec<(&String, &bool)>> = BTreeMap::new();
         for (name, (path, is_valid)) in &self.content {
             let Some(parent) = path.parent() else {
@@ -97,7 +94,6 @@ impl TemplateRegistry {
             }
             println!();
         }
-        Ok(())
     }
 
     fn check_self_is_empty(&self) -> Result<()> {
@@ -111,20 +107,11 @@ impl TemplateRegistry {
     ///
     /// # Errors
     /// Returns an error if the registry is empty or the named template does not exist.
-    pub fn get(&self, name: &str) -> Result<&(PathBuf, bool)> {
+    pub(crate) fn get(&self, name: &str) -> Result<&(PathBuf, bool)> {
         self.check_self_is_empty()?;
         self.content
             .get(name)
             .ok_or_else(|| anyhow!("No template found for {name:?}"))
-    }
-
-    /// Returns all discovered templates.
-    ///
-    /// # Errors
-    /// Returns an error if the registry is empty.
-    pub fn get_all(&self) -> Result<&HashMap<String, (PathBuf, bool)>> {
-        self.check_self_is_empty()?;
-        Ok(&self.content)
     }
 
     /// Returns the directory of a valid template.
@@ -132,7 +119,7 @@ impl TemplateRegistry {
     /// # Errors
     /// Returns an error if the registry is empty, the named template does not exist,
     /// or the template does not contain a `plato.toml` file.
-    pub fn get_config_path(&self, name: &str) -> Result<&PathBuf> {
+    pub(crate) fn get_config_path(&self, name: &str) -> Result<&PathBuf> {
         self.check_self_is_empty()?;
         let (path, is_valid) = self
             .content

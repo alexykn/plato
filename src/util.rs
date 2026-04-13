@@ -1,6 +1,5 @@
 use anyhow::{Context, Result, bail};
 use regex::Regex;
-use shell_words;
 use std::env::var;
 use std::ffi::OsStr;
 use std::path::Path;
@@ -34,7 +33,7 @@ fn get_default_editor() -> Result<(String, Vec<String>)> {
 ///
 /// # Errors
 /// Returns an error if the editor cannot be started or exits unsuccessfully.
-pub fn open_config_file(template_path: &Path) -> Result<()> {
+pub(crate) fn open_config_file(template_path: &Path) -> Result<()> {
     let config_file_path = template_path.join("plato.toml");
     let (command, mut args) = get_default_editor()?;
 
