@@ -1,9 +1,7 @@
 use crate::Config;
 use crate::core::config::{RustProjectScopeConfig, RustProjectTypeConfig};
 use crate::languages::LanguageSetupContext;
-use crate::languages::rust::shared::{
-    get_rust_package_manager, get_rust_project_scope, get_rust_project_type,
-};
+use crate::languages::rust::shared::{get_rust_project_scope, get_rust_project_type};
 use anyhow::Result;
 use std::path::PathBuf;
 
@@ -36,13 +34,11 @@ pub struct RustSetupContext {
     pub config: Config,
     pub project_scope: RustProjectScope,
     pub project_type: RustProjectType, // This is cargo specific, there is only cargo for rust so this is fine for now
-    pub package_manager: RustPackageManager,
 }
 
-impl TryFrom<LanguageSetupContext> for RustSetupContext {
+impl TryFrom<&LanguageSetupContext> for RustSetupContext {
     type Error = anyhow::Error;
-    fn try_from(ctx: LanguageSetupContext) -> Result<Self, Self::Error> {
-        let package_manager = get_rust_package_manager(); // returns cargo if installed or bails
+    fn try_from(ctx: &LanguageSetupContext) -> Result<Self, Self::Error> {
         let project_scope = match ctx.config.rust.project_scope {
             RustProjectScopeConfig::Auto => get_rust_project_scope(&ctx.target_path)?,
             RustProjectScopeConfig::Base => RustProjectScope::Base,
@@ -56,13 +52,12 @@ impl TryFrom<LanguageSetupContext> for RustSetupContext {
         };
 
         Ok(Self {
-            project_name: ctx.project_name,
-            source_path: ctx.source_path,
-            target_path: ctx.target_path,
-            config: ctx.config,
+            project_name: ctx.project_name.clone(),
+            source_path: ctx.source_path.clone(),
+            target_path: ctx.target_path.clone(),
+            config: ctx.config.clone(),
             project_scope,
             project_type,
-            package_manager,
         })
     }
 }

@@ -79,3 +79,13 @@ where
     }
     Ok(())
 }
+
+pub(crate) fn bail_if_target_path_exists(target_path: &Path, force: bool) -> Result<()> {
+    if !force && target_path.exists() {
+        bail!(
+            "Target path {} already exists. quitting.",
+            &target_path.display()
+        )
+    }
+    Ok(())
+}

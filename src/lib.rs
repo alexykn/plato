@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 use std::env::current_dir;
-use std::{fs::create_dir_all, path::PathBuf};
+use std::path::PathBuf;
 
 pub mod core;
 pub mod languages;
@@ -11,8 +11,9 @@ use crate::core::config::{Config, TemplateLanguage, get_config, get_global_plato
 use crate::core::guard::ProjectGuard;
 use crate::core::registry::TemplateRegistry;
 use crate::languages::{LanguageSetup, LanguageSetupContext, PythonSetup, RustSetup};
-use crate::util::{open_config_file, setup_git};
-use crate::workspace::setup_base_workspace;
+use crate::util::{bail_if_target_path_exists, open_config_file, setup_git};
+use crate::workspace::DefaultWorkspaceSetup;
+use crate::workspace::{WorkspaceSetup, WorkspaceSetupContext};
 
 pub struct RunOptions {
     pub template_name: Option<String>,
@@ -108,9 +109,10 @@ pub fn display_templates() -> Result<()> {
 pub fn run(options: RunOptions) -> Result<()> {
     let exec_ctx = ExecutionContext::try_from(options)?;
     let should_setup_git: bool = exec_ctx.source_config.plato.setup_git;
-    let mut guard = ProjectGuard::new(exec_ctx.target_path.clone());
+    bail_if_target_path_exists(&exec_ctx.target_path, exec_ctx.force)?;
 
-    run_workspace_setup(&exec_ctx)?;
+    let mut guard = ProjectGuard::new(exec_ctx.target_path.clone());
+    run_workspace_setup(&exec_ctx, &DefaultWorkspaceSetup)?;
     match &exec_ctx.source_config.plato.template_language {
         TemplateLanguage::Python => run_language_setup(&exec_ctx, &PythonSetup),
         TemplateLanguage::Rust => run_language_setup(&exec_ctx, &RustSetup),
@@ -123,28 +125,20 @@ pub fn run(options: RunOptions) -> Result<()> {
     Ok(())
 }
 
-fn run_workspace_setup(exec_ctx: &ExecutionContext) -> Result<()> {
-    if !exec_ctx.force && exec_ctx.target_path.exists() {
-        bail!(
-            "Target path {} already exists. quitting.",
-            &exec_ctx.target_path.display()
-        )
-    }
-    create_dir_all(&exec_ctx.target_path)?;
-    setup_base_workspace(
-        &exec_ctx.project_name,
-        &exec_ctx.source_config,
-        &exec_ctx.source_path,
-        &exec_ctx.target_path,
-    )?;
-    Ok(())
-}
-
 fn run_language_setup<L>(exec_ctx: &ExecutionContext, language_setup: &L) -> Result<()>
 where
     L: LanguageSetup,
 {
     let language_ctx = LanguageSetupContext::from(exec_ctx);
     language_setup.setup(language_ctx)?;
+    Ok(())
+}
+
+fn run_workspace_setup<W>(exec_ctx: &ExecutionContext, workspace_setup: &W) -> Result<()>
+where
+    W: WorkspaceSetup,
+{
+    let workspace_ctx = WorkspaceSetupContext::from(exec_ctx.clone());
+    workspace_setup.setup(workspace_ctx)?;
     Ok(())
 }

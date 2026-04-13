@@ -38,7 +38,7 @@ pub(crate) struct WorkspaceBuilder {
 }
 
 impl WorkspaceBuilder {
-    pub(super) fn scan(source_path: &Path) -> Result<Self> {
+    pub(super) fn from_source(source_path: &Path) -> Result<Self> {
         let mut raw_map = HashMap::new();
         for entry in WalkDir::new(source_path)
             .into_iter()

@@ -2,11 +2,11 @@ use anyhow::Result;
 use std::path::PathBuf;
 
 use crate::{
-    core::config::{Config, PythonPackageManagerConfig, PythonProjectScopeConfig},
+    core::config::{Config, PythonProjectScopeConfig},
     languages::LanguageSetupContext,
 };
 
-use self::shared::{get_python_package_manager, get_python_project_scope};
+use self::shared::get_python_project_scope;
 
 pub mod pip;
 pub mod shared;
@@ -26,19 +26,16 @@ pub enum PythonPackageManager {
     None,
 }
 
-pub struct PythonSetupContext {
-    pub project_name: String,
-    pub source_path: PathBuf,
-    pub target_path: PathBuf,
-    pub config: Config,
-    pub project_scope: PythonProjectScope,
-    pub package_manager: PythonPackageManager,
+pub(crate) struct PythonSetupContext {
+    pub(crate) target_path: PathBuf,
+    pub(crate) config: Config,
+    pub(crate) project_scope: PythonProjectScope,
 }
 
-impl TryFrom<LanguageSetupContext> for PythonSetupContext {
+impl TryFrom<&LanguageSetupContext> for PythonSetupContext {
     type Error = anyhow::Error;
 
-    fn try_from(ctx: LanguageSetupContext) -> Result<Self, Self::Error> {
+    fn try_from(ctx: &LanguageSetupContext) -> Result<Self, Self::Error> {
         let project_scope = match ctx.config.python.project_scope {
             PythonProjectScopeConfig::Auto => {
                 get_python_project_scope(&ctx.target_path, &ctx.project_name)
@@ -47,22 +44,11 @@ impl TryFrom<LanguageSetupContext> for PythonSetupContext {
             PythonProjectScopeConfig::Install => PythonProjectScope::Install,
             PythonProjectScopeConfig::Requirements => PythonProjectScope::Requirements,
         };
-        let package_manager = match ctx.config.python.package_manager {
-            PythonPackageManagerConfig::Auto => get_python_package_manager(
-                &ctx.config.python.language_version,
-                ctx.config.python.pip_config.version_fallback,
-            ),
-            PythonPackageManagerConfig::Uv => PythonPackageManager::Uv,
-            PythonPackageManagerConfig::Pip => PythonPackageManager::Pip,
-        };
 
         Ok(Self {
-            project_name: ctx.project_name,
-            source_path: ctx.source_path,
-            target_path: ctx.target_path,
-            config: ctx.config,
+            target_path: ctx.target_path.clone(),
+            config: ctx.config.clone(),
             project_scope,
-            package_manager,
         })
     }
 }

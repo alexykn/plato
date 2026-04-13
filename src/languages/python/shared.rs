@@ -1,3 +1,5 @@
+use crate::core::config::PythonPackageManagerConfig;
+use crate::languages::LanguageSetupContext;
 use crate::languages::python::{PythonPackageManager, PythonProjectScope};
 use crate::util::is_installed;
 use anyhow::{Context, Result, bail};
@@ -68,13 +70,21 @@ pub(crate) fn get_python_project_scope(target: &Path, project_name: &str) -> Pyt
     Base
 }
 
+pub(crate) fn get_python_package_manager(ctx: &LanguageSetupContext) -> PythonPackageManager {
+    match ctx.config.python.package_manager {
+        PythonPackageManagerConfig::Auto => resolve_python_package_manager(
+            &ctx.config.python.language_version,
+            ctx.config.python.pip_config.version_fallback,
+        ),
+        PythonPackageManagerConfig::Uv => PythonPackageManager::Uv,
+        PythonPackageManagerConfig::Pip => PythonPackageManager::Pip,
+    }
+}
+
 // Keep auto-detection quiet here: pip command fallback warnings are emitted in
 // `PipPackageManagerSetup::setup`, so logging them again at detection time would duplicate output.
 //
-pub(crate) fn get_python_package_manager(
-    version: &str,
-    pip_fallback: bool,
-) -> PythonPackageManager {
+fn resolve_python_package_manager(version: &str, pip_fallback: bool) -> PythonPackageManager {
     if is_installed("uv") {
         return PythonPackageManager::Uv;
     }
