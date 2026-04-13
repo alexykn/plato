@@ -36,9 +36,9 @@ pub struct RustSetupContext {
     pub project_type: RustProjectType, // This is cargo specific, there is only cargo for rust so this is fine for now
 }
 
-impl TryFrom<&LanguageSetupContext> for RustSetupContext {
+impl TryFrom<LanguageSetupContext> for RustSetupContext {
     type Error = anyhow::Error;
-    fn try_from(ctx: &LanguageSetupContext) -> Result<Self, Self::Error> {
+    fn try_from(ctx: LanguageSetupContext) -> Result<Self, Self::Error> {
         let project_scope = match ctx.config.rust.project_scope {
             RustProjectScopeConfig::Auto => get_rust_project_scope(&ctx.target_path)?,
             RustProjectScopeConfig::Base => RustProjectScope::Base,
@@ -52,10 +52,10 @@ impl TryFrom<&LanguageSetupContext> for RustSetupContext {
         };
 
         Ok(Self {
-            project_name: ctx.project_name.clone(),
-            source_path: ctx.source_path.clone(),
-            target_path: ctx.target_path.clone(),
-            config: ctx.config.clone(),
+            project_name: ctx.project_name,
+            source_path: ctx.source_path,
+            target_path: ctx.target_path,
+            config: ctx.config,
             project_scope,
             project_type,
         })

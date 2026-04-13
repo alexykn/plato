@@ -26,13 +26,13 @@ pub struct LanguageSetupContext {
     pub config: Config,
 }
 
-impl From<&ExecutionContext> for LanguageSetupContext {
-    fn from(ctx: &ExecutionContext) -> Self {
+impl From<ExecutionContext> for LanguageSetupContext {
+    fn from(ctx: ExecutionContext) -> Self {
         LanguageSetupContext {
-            project_name: ctx.project_name.clone(),
-            source_path: ctx.source_path.clone(),
-            target_path: ctx.target_path.clone(),
-            config: ctx.source_config.clone(),
+            project_name: ctx.project_name,
+            source_path: ctx.source_path,
+            target_path: ctx.target_path,
+            config: ctx.source_config,
         }
     }
 }
@@ -47,8 +47,8 @@ impl LanguageSetup for PythonSetup {
     fn setup(&self, ctx: LanguageSetupContext) -> Result<()> {
         let package_manager = get_python_package_manager(&ctx);
         match package_manager {
-            PythonPackageManager::Uv => run_python_setup(&ctx, &UvPackageManagerSetup),
-            PythonPackageManager::Pip => run_python_setup(&ctx, &PipPackageManagerSetup),
+            PythonPackageManager::Uv => run_python_setup(ctx, &UvPackageManagerSetup),
+            PythonPackageManager::Pip => run_python_setup(ctx, &PipPackageManagerSetup),
             PythonPackageManager::None => {
                 bail!("Python package manager {package_manager:?} requested but not installed.");
             }
@@ -63,7 +63,7 @@ impl LanguageSetup for RustSetup {
     fn setup(&self, ctx: LanguageSetupContext) -> Result<()> {
         let package_manager = get_rust_package_manager();
         match package_manager {
-            RustPackageManager::Cargo => run_rust_setup(&ctx, &CargoPackageManagerSetup),
+            RustPackageManager::Cargo => run_rust_setup(ctx, &CargoPackageManagerSetup),
             RustPackageManager::None => {
                 bail!("Rust package manager {package_manager:?} requested but not installed.")
             }
@@ -71,16 +71,16 @@ impl LanguageSetup for RustSetup {
     }
 }
 
-fn run_python_setup<P>(languate_ctx: &LanguageSetupContext, package_manager: &P) -> Result<()>
+fn run_python_setup<P>(language_ctx: LanguageSetupContext, package_manager: &P) -> Result<()>
 where
     P: PythonPackageManagerSetup,
 {
-    let python_ctx = PythonSetupContext::try_from(languate_ctx)?;
+    let python_ctx = PythonSetupContext::try_from(language_ctx)?;
     package_manager.setup(python_ctx)?;
     Ok(())
 }
 
-fn run_rust_setup<P>(languate_ctx: &LanguageSetupContext, package_manager: &P) -> Result<()>
+fn run_rust_setup<P>(languate_ctx: LanguageSetupContext, package_manager: &P) -> Result<()>
 where
     P: RustPackageManagerSetup,
 {

@@ -108,24 +108,25 @@ pub fn display_templates() -> Result<()> {
 /// template rendering, or project setup fails.
 pub fn run(options: RunOptions) -> Result<()> {
     let exec_ctx = ExecutionContext::try_from(options)?;
+    let target_path = exec_ctx.target_path.clone();
     let should_setup_git: bool = exec_ctx.source_config.plato.setup_git;
     bail_if_target_path_exists(&exec_ctx.target_path, exec_ctx.force)?;
 
     let mut guard = ProjectGuard::new(exec_ctx.target_path.clone());
-    run_workspace_setup(&exec_ctx, &DefaultWorkspaceSetup)?;
+    run_workspace_setup(exec_ctx.clone(), &DefaultWorkspaceSetup)?;
     match &exec_ctx.source_config.plato.template_language {
-        TemplateLanguage::Python => run_language_setup(&exec_ctx, &PythonSetup),
-        TemplateLanguage::Rust => run_language_setup(&exec_ctx, &RustSetup),
+        TemplateLanguage::Python => run_language_setup(exec_ctx, &PythonSetup),
+        TemplateLanguage::Rust => run_language_setup(exec_ctx, &RustSetup),
         TemplateLanguage::Base => Ok(()),
     }?;
     if should_setup_git {
-        setup_git(&exec_ctx.target_path)?;
+        setup_git(&target_path)?;
     }
     guard.release();
     Ok(())
 }
 
-fn run_language_setup<L>(exec_ctx: &ExecutionContext, language_setup: &L) -> Result<()>
+fn run_language_setup<L>(exec_ctx: ExecutionContext, language_setup: &L) -> Result<()>
 where
     L: LanguageSetup,
 {
@@ -134,11 +135,11 @@ where
     Ok(())
 }
 
-fn run_workspace_setup<W>(exec_ctx: &ExecutionContext, workspace_setup: &W) -> Result<()>
+fn run_workspace_setup<W>(exec_ctx: ExecutionContext, workspace_setup: &W) -> Result<()>
 where
     W: WorkspaceSetup,
 {
-    let workspace_ctx = WorkspaceSetupContext::from(exec_ctx.clone());
+    let workspace_ctx = WorkspaceSetupContext::from(exec_ctx);
     workspace_setup.setup(workspace_ctx)?;
     Ok(())
 }
