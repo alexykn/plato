@@ -93,3 +93,38 @@ fn try_run() -> anyhow::Result<()> {
         Commands::List => plato::display_templates(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_map_args_no_path() {
+        let result = map_args(
+            Some("template_name".to_string()),
+            Some("project_name".to_string()),
+            None,
+        )
+        .unwrap();
+
+        dbg!(&result);
+
+        assert_eq!(result.0.unwrap(), "template_name");
+        assert_eq!(result.1, "project_name");
+    }
+
+    #[test]
+    fn test_map_args_with_path() {
+        let result = map_args(
+            Some("template_name".to_string()),
+            None,
+            Some(&PathBuf::from("/some/path")),
+        )
+        .unwrap();
+
+        dbg!(&result);
+
+        assert!(result.0.is_none());
+        assert_eq!(result.1, "template_name");
+    }
+}
