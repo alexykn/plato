@@ -5,7 +5,7 @@ build:
     cargo build
 
 test:
-    cargo test
+    @cargo test
 
 fmt:
     @cargo fmt --all
@@ -13,7 +13,7 @@ fmt:
 clippy:
     @cargo clippy --fix --all-targets --allow-dirty -- -D warnings -W clippy::pedantic
 
-check: fmt clippy
+check: fmt clippy test
 
 major_upgrade:
     @cargo upgrade -i
