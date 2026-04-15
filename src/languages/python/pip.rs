@@ -1,4 +1,4 @@
-use super::shared::{build_python_versioned_commands, get_requirements_file_path};
+use super::shared::{build_python_versioned_commands, get_or_create_requirements_file};
 use anyhow::{Context, Result};
 use std::path::Path;
 
@@ -100,7 +100,7 @@ impl PipPackageManagerSetup {
 
     fn install_requirements(target: &Path) -> Result<()> {
         let python_pip_exec = target.join(RELATIVE_VENV_PATH);
-        let requirements_file = get_requirements_file_path(target)?
+        let requirements_file = get_or_create_requirements_file(target)?
             .to_string_lossy()
             .to_string();
         let mut pip_install_args = get_pip_install_args();
