@@ -78,11 +78,11 @@ where
     Ok(())
 }
 
-fn run_rust_setup<P>(languate_ctx: LanguageSetupContext, package_manager: &P) -> Result<()>
+fn run_rust_setup<P>(language_ctx: LanguageSetupContext, package_manager: &P) -> Result<()>
 where
     P: RustPackageManagerSetup,
 {
-    let rust_ctx = RustSetupContext::try_from(languate_ctx)?;
+    let rust_ctx = RustSetupContext::try_from(language_ctx)?;
     package_manager.setup(rust_ctx)?;
     Ok(())
 }
