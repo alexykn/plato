@@ -1,10 +1,9 @@
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-use plato::RunOptions;
+use plato::{InitSource, RunOptions};
 
-/// Plato: A cool project templating tool
 #[derive(Parser, Debug)]
 #[command(name = "plato")]
 #[command(about = "Scaffolds projects from ~/.config/plato", long_about = None)]
@@ -43,23 +42,22 @@ enum Commands {
 fn map_args(
     template_name: Option<String>,
     project_name: Option<String>,
-    path: Option<&PathBuf>,
-) -> Result<(Option<String>, String)> {
-    if path.is_some() {
-        if project_name.is_some() {
-            bail!("With --path, init expects exactly one positional argument: <PROJECT_NAME>");
-        }
+    path: Option<PathBuf>,
+) -> Result<(InitSource, String)> {
+    if let Some(template_path) = path {
         let project_name = template_name.ok_or_else(|| {
-            anyhow!("With --path, init expects exactly one positional argument: <PROJECT_NAME>")
+            anyhow!("When passing --path 'path' only a single additional arg 'project_name' is expected.")
         })?;
-        return Ok((None, project_name));
+        Ok((InitSource::TemplatePath { template_path }, project_name))
+    } else {
+        let project_name = project_name.ok_or_else(|| {
+            anyhow!("Wehn running without --path please pass 'template_name' and 'project_name' as args.")
+        })?;
+        let template_name = template_name.ok_or_else(|| {
+            anyhow!("Wehn running without --path please pass 'template_name' and 'project_name' as args.")
+        })?;
+        Ok((InitSource::NamedTemplate { template_name }, project_name))
     }
-
-    let template_name = template_name
-        .ok_or_else(|| anyhow!("Without --path, init expects <TEMPLATE_NAME> <PROJECT_NAME>"))?;
-    let project_name = project_name
-        .ok_or_else(|| anyhow!("Without --path, init expects <TEMPLATE_NAME> <PROJECT_NAME>"))?;
-    Ok((Some(template_name), project_name))
 }
 
 fn main() {
@@ -79,14 +77,12 @@ fn try_run() -> anyhow::Result<()> {
             force,
             path,
         } => {
-            let (template_name, project_name) =
-                map_args(template_name, project_name, path.as_ref())?;
+            let (init_source, project_name) = map_args(template_name, project_name, path)?;
 
             plato::run(RunOptions {
-                template_name,
+                source: init_source,
                 project_name,
                 force,
-                path,
             })
         }
         Commands::Config { template_name } => plato::edit_config(&template_name),
@@ -109,7 +105,11 @@ mod tests {
 
         dbg!(&result);
 
-        assert_eq!(result.0.unwrap(), "template_name");
+        let InitSource::NamedTemplate { template_name } = result.0 else {
+            panic!("Expected InitSource::NamedTemplate");
+        };
+
+        assert_eq!(template_name, "template_name");
         assert_eq!(result.1, "project_name");
     }
 
@@ -118,13 +118,17 @@ mod tests {
         let result = map_args(
             Some("template_name".to_string()),
             None,
-            Some(&PathBuf::from("/some/path")),
+            Some(PathBuf::from("/some/path")),
         )
         .unwrap();
 
         dbg!(&result);
 
-        assert!(result.0.is_none());
+        let InitSource::TemplatePath { template_path } = result.0 else {
+            panic!("Expected InitSource::TemplatePath");
+        };
+
+        assert_eq!(template_path, PathBuf::from("/some/path"));
         assert_eq!(result.1, "template_name");
     }
 }

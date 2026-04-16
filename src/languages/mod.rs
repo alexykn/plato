@@ -30,7 +30,7 @@ impl From<ExecutionContext> for LanguageSetupContext {
         LanguageSetupContext {
             project_name: ctx.project_name,
             target_path: ctx.target_path,
-            config: ctx.source_config,
+            config: ctx.config,
         }
     }
 }

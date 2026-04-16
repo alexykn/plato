@@ -37,23 +37,23 @@ impl From<ExecutionContext> for WorkspaceSetupContext {
 fn build_template_context(exec_ctx: &ExecutionContext) -> TemplateContext {
     let mut template_context: HashMap<String, String> = HashMap::new();
     template_context.insert("project_name".to_string(), exec_ctx.project_name.clone());
-    match &exec_ctx.source_config.plato.template_language {
+    match &exec_ctx.config.plato.template_language {
         TemplateLanguage::Python => {
             template_context.insert(
                 "language_version".to_string(),
-                exec_ctx.source_config.python.language_version.clone(),
+                exec_ctx.config.python.language_version.clone(),
             );
         }
         TemplateLanguage::Rust => {
             template_context.insert(
                 "toolchain".to_string(),
-                exec_ctx.source_config.rust.toolchain.clone(),
+                exec_ctx.config.rust.toolchain.clone(),
             );
         }
         TemplateLanguage::Base => {}
     }
 
-    template_context.extend(exec_ctx.source_config.template.context.clone());
+    template_context.extend(exec_ctx.config.template.context.clone());
 
     TemplateContext {
         context: template_context,
