@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use std::env::current_dir;
 use std::path::PathBuf;
 
@@ -9,7 +9,7 @@ pub(crate) mod workspace;
 
 use crate::core::config::{Config, TemplateLanguage, get_global_plato_dir, parse_config};
 use crate::core::guard::ProjectGuard;
-use crate::core::registry::TemplateRegistry;
+use crate::core::registry::{TemplateRegistry, TemplateStatus};
 use crate::languages::{LanguageSetup, LanguageSetupContext, PythonSetup, RustSetup};
 use crate::util::{
     bail_if_target_path_exists, get_source_path_for_template, open_config_file, setup_git,
@@ -76,8 +76,11 @@ pub fn edit_config(template_name: &str) -> Result<()> {
         &fallback_dirs
     };
     let registry = TemplateRegistry::build(&global_plato_dir, extra_template_dirs);
-    let selected_config = registry.get_config_path(template_name)?;
-    open_config_file(selected_config)
+    let (config, status) = registry.get(template_name)?;
+    match status {
+        TemplateStatus::Valid | TemplateStatus::MalformedConfig => open_config_file(config),
+        TemplateStatus::MissingConfig => bail!("No config file found for {template_name}"),
+    }
 }
 
 /// Displays all discovered templates.

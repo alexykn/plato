@@ -84,29 +84,6 @@ impl TemplateRegistry {
             .get(name)
             .ok_or_else(|| anyhow!("No template found for {name:?}"))
     }
-
-    /// Returns the directory of a valid template.
-    ///
-    /// # Errors
-    /// Returns an error if the registry is empty, the named template does not exist,
-    /// or the template does not contain a `plato.toml` file.
-    pub(crate) fn get_config_path(&self, name: &str) -> Result<&PathBuf> {
-        self.check_self_is_empty()?;
-        let (path, status) = self
-            .content
-            .get(name)
-            .ok_or_else(|| anyhow::anyhow!("No template found for {name:?}"))?;
-
-        // This function is just for getting the path and also used for opening
-        // the file in a editor so we should not error out on malformed config
-        match status {
-            TemplateStatus::Valid | TemplateStatus::MalformedConfig => Ok(path),
-            TemplateStatus::MissingConfig => bail!(
-                "Template at {} does not contain a 'plato.toml'",
-                path.display()
-            ),
-        }
-    }
 }
 
 fn is_valid_dir(dir: &Path) -> bool {
