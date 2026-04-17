@@ -94,7 +94,7 @@ pub fn display_templates() -> Result<()> {
         &fallback_dirs
     };
     let registry = TemplateRegistry::build(&global_plato_dir, extra_template_dirs);
-    registry.display()?;
+    print!("{registry}");
     Ok(())
 }
 

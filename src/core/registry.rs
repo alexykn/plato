@@ -24,6 +24,24 @@ impl Display for TemplateStatus {
     }
 }
 
+impl Display for TemplateRegistry {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let ordered_map = build_ordered_template_map(&self.content);
+        let max_length = self.content.keys().map(String::len).max().unwrap_or(0);
+
+        for (folder, mut templates) in ordered_map {
+            writeln!(f, "{}", folder.display())?;
+
+            templates.sort_by_key(|(name, _)| name.clone());
+            for (name, status) in templates {
+                writeln!(f, " - {name:<max_length$} | {status}")?;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
+    }
+}
+
 pub(crate) struct TemplateRegistry {
     content: HashMap<String, (PathBuf, TemplateStatus)>,
 }
@@ -47,27 +65,6 @@ impl TemplateRegistry {
             templates.extend(yield_templates_from_dir(entries));
         }
         Self { content: templates }
-    }
-
-    /// Lists the templates in the given Plato config directory.
-    ///
-    /// # Errors
-    /// Returns an error if the registry is invalid or cannot be displayed.
-    pub(crate) fn display(&self) -> Result<()> {
-        self.check_self_is_empty()?;
-        let ordered_map = build_ordered_template_map(&self.content);
-        let max_length = self.content.keys().map(String::len).max().unwrap_or(0);
-
-        for (folder, mut templates) in ordered_map {
-            println!("{}", folder.display());
-
-            templates.sort_by_key(|(name, _)| name.clone());
-            for (name, status) in templates {
-                println!(" - {name:<max_length$} | {status}");
-            }
-            println!();
-        }
-        Ok(())
     }
 
     fn check_self_is_empty(&self) -> Result<()> {
