@@ -15,7 +15,7 @@ impl TemplateRegistry {
         let mut dirs_to_check = vec![global_template_dir];
         for dir in extra_template_dirs {
             if !dir.exists() || !dir.is_dir() {
-                println!(
+                eprintln!(
                     "WARNING: Defined extra directory {} does not exist, skipping.",
                     dir.display()
                 );
@@ -24,9 +24,8 @@ impl TemplateRegistry {
             if dir
                 .components()
                 .any(|c| matches!(c, Component::CurDir | Component::ParentDir))
-                || !dir.is_absolute()
             {
-                println!(
+                eprintln!(
                     "WARNING: Malformed extra directory {}, skipping.",
                     dir.display()
                 );
