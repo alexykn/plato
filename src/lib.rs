@@ -7,7 +7,7 @@ pub(crate) mod languages;
 pub(crate) mod util;
 pub(crate) mod workspace;
 
-use crate::core::config::{Config, TemplateLanguage, get_config, get_global_plato_dir};
+use crate::core::config::{Config, TemplateLanguage, get_global_plato_dir, parse_config};
 use crate::core::guard::ProjectGuard;
 use crate::core::registry::TemplateRegistry;
 use crate::languages::{LanguageSetup, LanguageSetupContext, PythonSetup, RustSetup};
@@ -49,7 +49,7 @@ impl TryFrom<RunOptions> for ExecutionContext {
                 get_source_path_for_template(template_name.as_str())?
             }
         };
-        let source_config = get_config(&source_path)?;
+        let source_config = parse_config(&source_path)?;
         let target_path = current_dir()?.join(&options.project_name);
         Ok(Self {
             project_name: options.project_name,
@@ -68,7 +68,7 @@ impl TryFrom<RunOptions> for ExecutionContext {
 /// or the editor cannot be started successfully.
 pub fn edit_config(template_name: &str) -> Result<()> {
     let global_plato_dir = get_global_plato_dir()?;
-    let global_config = get_config(&global_plato_dir).ok();
+    let global_config = parse_config(&global_plato_dir).ok();
     let fallback_dirs = Vec::new();
     let extra_template_dirs = if let Some(config) = &global_config {
         &config.plato.extra_dirs
@@ -86,7 +86,7 @@ pub fn edit_config(template_name: &str) -> Result<()> {
 /// Returns an error if the global config cannot be loaded or the template registry cannot be built.
 pub fn display_templates() -> Result<()> {
     let global_plato_dir = get_global_plato_dir()?;
-    let global_config = get_config(&global_plato_dir).ok();
+    let global_config = parse_config(&global_plato_dir).ok();
     let fallback_dirs = Vec::new();
     let extra_template_dirs = if let Some(config) = &global_config {
         &config.plato.extra_dirs
@@ -94,7 +94,7 @@ pub fn display_templates() -> Result<()> {
         &fallback_dirs
     };
     let registry = TemplateRegistry::build(&global_plato_dir, extra_template_dirs);
-    registry.display();
+    registry.display()?;
     Ok(())
 }
 

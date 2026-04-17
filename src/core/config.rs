@@ -138,7 +138,7 @@ pub(crate) fn get_global_plato_dir() -> Result<PathBuf> {
 ///
 /// # Errors
 /// Returns an error if the file is missing, unreadable, or invalid TOML.
-pub(crate) fn get_config(source_path: &Path) -> Result<Config> {
+pub(crate) fn parse_config(source_path: &Path) -> Result<Config> {
     let toml_path = source_path.join("plato.toml");
     if !toml_path.exists() {
         bail!("Missing plato.toml in {}", source_path.display());

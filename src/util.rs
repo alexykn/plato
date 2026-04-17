@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::LazyLock;
 
-use crate::{TemplateRegistry, get_config, get_global_plato_dir};
+use crate::{TemplateRegistry, get_global_plato_dir, parse_config};
 
 static ALLOWED_CMD_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(git|cargo|uv|python\d*(?:\.\d+)*)$").expect("Invalid regex pattern")
@@ -94,7 +94,7 @@ pub(crate) fn bail_if_target_path_exists(target_path: &Path, force: bool) -> Res
 pub(crate) fn get_source_path_for_template(template_name: &str) -> Result<PathBuf> {
     let fallback_dirs = vec![];
     let global_plato_dir = get_global_plato_dir()?;
-    let global_config = get_config(&global_plato_dir).ok();
+    let global_config = parse_config(&global_plato_dir).ok();
     let extra_template_dirs = if let Some(config) = &global_config {
         &config.plato.extra_dirs
     } else {
