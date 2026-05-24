@@ -73,20 +73,24 @@ impl TemplateRegistry {
     }
 
     pub(crate) fn list(&self, verbose: bool) -> String {
+        use std::fmt::Write;
+
         let mut output = String::new();
-        output.push_str("NAME TYPE CONFIG\n");
+        let max_length = self.records.keys().map(String::len).max().unwrap_or(0);
+
         for record in self.records.values() {
             let config_status = if record.config_override.is_some() {
                 "override"
             } else {
                 "source/default"
             };
-            output.push_str(&format!(
-                "{} {} {}\n",
-                record.name,
-                record.kind(),
-                config_status
-            ));
+            let _ = writeln!(
+                output,
+                " - {name:<max_length$} | {kind:<4} | {config_status}",
+                name = record.name,
+                kind = record.kind().to_string(),
+                config_status = config_status
+            );
             if verbose {
                 output.push_str(&format_verbose_record(record));
             }
@@ -96,23 +100,25 @@ impl TemplateRegistry {
 }
 
 fn format_verbose_record(record: &TemplateRecord) -> String {
+    use std::fmt::Write;
+
     let mut output = String::new();
     match &record.entry {
         TemplateEntry::Path { path } => {
-            output.push_str(&format!("  path = {}\n", path.display()));
+            let _ = writeln!(output, "   path: {}", path.display());
         }
         TemplateEntry::Git { git, rev, subpath } => {
-            output.push_str(&format!("  git = {git}\n"));
+            let _ = writeln!(output, "   git: {git}");
             if let Some(rev) = rev {
-                output.push_str(&format!("  rev = {rev}\n"));
+                let _ = writeln!(output, "   rev: {rev}");
             }
             if let Some(subpath) = subpath {
-                output.push_str(&format!("  subpath = {}\n", subpath.display()));
+                let _ = writeln!(output, "   subpath: {}", subpath.display());
             }
         }
     }
     if let Some(config_override) = &record.config_override {
-        output.push_str(&format!("  config = {}\n", config_override.display()));
+        let _ = writeln!(output, "   config: {}", config_override.display());
     }
     output
 }
@@ -144,7 +150,7 @@ mod tests {
         ]);
         let registry = TemplateRegistry::from_config(&config);
         let output = registry.list(false);
-        assert!(output.find("api git").unwrap() < output.find("zed path").unwrap());
+        assert!(output.find("api").unwrap() < output.find("zed").unwrap());
     }
 
     #[test]
@@ -162,9 +168,9 @@ mod tests {
             .template_configs
             .insert("api".to_string(), PathBuf::from("~/api.toml"));
         let output = TemplateRegistry::from_config(&config).list(true);
-        assert!(output.contains("git = github:owner/repo"));
-        assert!(output.contains("rev = main"));
-        assert!(output.contains("subpath = templates/api"));
-        assert!(output.contains("config = "));
+        assert!(output.contains("git: github:owner/repo"));
+        assert!(output.contains("rev: main"));
+        assert!(output.contains("subpath: templates/api"));
+        assert!(output.contains("config: "));
     }
 }
