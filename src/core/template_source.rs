@@ -77,7 +77,7 @@ impl TemplateResolver {
                 cli_rev,
                 cli_subpath,
             } => self.prepare_ad_hoc_git(&spec, cli_rev.as_deref(), cli_subpath.as_deref()),
-            TemplateRequest::Path { path } => self.prepare_ad_hoc_path(path),
+            TemplateRequest::Path { path } => Self::prepare_ad_hoc_path(&path),
         }
     }
 
@@ -135,7 +135,7 @@ impl TemplateResolver {
         match &record.entry {
             TemplateEntry::Path { path } => {
                 let source_path = expand_tilde(path)?;
-                let config = self.select_named_config(name, &source_path, record)?;
+                let config = Self::select_named_config(name, &source_path, record)?;
                 Ok(PreparedTemplateSource {
                     source_path,
                     config,
@@ -153,7 +153,7 @@ impl TemplateResolver {
                 )?;
                 let fetcher = GitTemplateFetcher::from_user_cache_dir()?;
                 let checkout = fetcher.prepare_checkout(&spec)?;
-                let config = self.select_named_config(name, &checkout.source_path, record)?;
+                let config = Self::select_named_config(name, &checkout.source_path, record)?;
                 let source_path = checkout.source_path.clone();
                 Ok(PreparedTemplateSource {
                     source_path,
@@ -183,8 +183,8 @@ impl TemplateResolver {
         })
     }
 
-    fn prepare_ad_hoc_path(&self, path: PathBuf) -> Result<PreparedTemplateSource> {
-        let source_path = expand_tilde(&path)?;
+    fn prepare_ad_hoc_path(path: &Path) -> Result<PreparedTemplateSource> {
+        let source_path = expand_tilde(path)?;
         let config = select_ad_hoc_config(&source_path, "--path template")?;
         Ok(PreparedTemplateSource {
             source_path,
@@ -194,7 +194,6 @@ impl TemplateResolver {
     }
 
     fn select_named_config(
-        &self,
         name: &str,
         source_path: &Path,
         record: &TemplateRecord,
@@ -252,18 +251,18 @@ mod tests {
 
     #[test]
     fn config_path_uses_override_for_remote() {
-        let mut config = GlobalConfig::default();
-        config.templates = HashMap::from([(
-            "api".to_string(),
-            TemplateEntry::Git {
-                git: "github:owner/repo".to_string(),
-                rev: None,
-                subpath: None,
-            },
-        )]);
-        config
-            .template_configs
-            .insert("api".to_string(), PathBuf::from("~/api.toml"));
+        let config = GlobalConfig {
+            templates: HashMap::from([(
+                "api".to_string(),
+                TemplateEntry::Git {
+                    git: "github:owner/repo".to_string(),
+                    rev: None,
+                    subpath: None,
+                },
+            )]),
+            template_configs: HashMap::from([("api".to_string(), PathBuf::from("~/api.toml"))]),
+            ..Default::default()
+        };
         let path = TemplateResolver::new(config)
             .config_path_for("api")
             .unwrap();

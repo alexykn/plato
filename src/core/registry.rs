@@ -131,23 +131,25 @@ mod tests {
 
     #[test]
     fn lists_templates_in_stable_order() {
-        let mut config = GlobalConfig::default();
-        config.templates = HashMap::from([
-            (
-                "zed".to_string(),
-                TemplateEntry::Path {
-                    path: PathBuf::from("/tmp/zed"),
-                },
-            ),
-            (
-                "api".to_string(),
-                TemplateEntry::Git {
-                    git: "github:owner/repo".to_string(),
-                    rev: None,
-                    subpath: None,
-                },
-            ),
-        ]);
+        let config = GlobalConfig {
+            templates: HashMap::from([
+                (
+                    "zed".to_string(),
+                    TemplateEntry::Path {
+                        path: PathBuf::from("/tmp/zed"),
+                    },
+                ),
+                (
+                    "api".to_string(),
+                    TemplateEntry::Git {
+                        git: "github:owner/repo".to_string(),
+                        rev: None,
+                        subpath: None,
+                    },
+                ),
+            ]),
+            ..Default::default()
+        };
         let registry = TemplateRegistry::from_config(&config);
         let output = registry.list(false);
         assert!(output.find("api").unwrap() < output.find("zed").unwrap());

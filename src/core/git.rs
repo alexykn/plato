@@ -378,7 +378,10 @@ fn build_provider_url(provider: GitProvider, path: &str, config: &GlobalConfig) 
 }
 
 fn build_host_url(host: &str, path: &str) -> String {
-    if path.ends_with(".git") {
+    if Path::new(path)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("git"))
+    {
         return format!("git@{host}:{path}");
     }
     format!("git@{host}:{path}.git")
