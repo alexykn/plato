@@ -1,107 +1,170 @@
 # Plato
 
-Plato is a local project scaffolding tool.
+Plato is a local project scaffolding tool. It renders configured templates into a new project directory and can optionally run language-specific setup for Python and Rust projects.
 
-I built this because I wanted a "one-shot" command to setup my projects in a state where I can just start coding.
-
-It reads templates from `~/.config/plato/<template_name>`, renders files into a new
-project directory, and then optionally performs language-specific setup for Python
-and Rust projects.
-
-Current CLI:
+## CLI
 
 ```bash
-plato init [OPTIONS] <template_name> <project_name>
-plato init [OPTIONS] --path <template_dir> <project_name>
+plato init <template_name> <project_name> [--rev <rev>] [--subpath <path>] [--force]
+plato init --git <git_spec> <project_name> [--rev <rev>] [--subpath <path>] [--force]
+plato init --path <template_dir> <project_name> [--force]
 plato config <template_name>
-plato list
+plato list [-v|--verbose]
 ```
 
 Examples:
 
 ```bash
 plato init py my-app
-plato init rs-bin hello-rust
+plato init api my-api --rev main
+plato init --git gitlab:group/templates/api my-api
 plato init --path ~/src/my-template demo
-plato init --force py existing-dir
-plato config py
-plato list
+plato config api
+plato list --verbose
 ```
 
----
+## Global Configuration
 
-## Project Structure & Module Organization
-- `src/main.rs`: CLI entrypoint. Parses `plato init <template> <project_name>`, `plato config <template>`, and `plato list`.
-- `src/lib.rs`: Main orchestration entrypoint for rendering + language setup.
-- `src/core/config.rs`: `plato.toml` schema, defaults, and config loading.
-- `src/core/guard.rs`: Cleanup guard that removes the target directory on failure.
-- `src/workspace/mod.rs`: Builds render context and drives template rendering.
-- `src/workspace/setup.rs`: Scans source templates, renders paths/content, writes files.
-- `src/languages/mod.rs`: Shared setup context and language dispatch.
-- `src/languages/python/*`: Python detection and setup via `uv` or `pip`.
-- `src/languages/rust/*`: Rust detection and setup via `cargo`.
-- `src/util.rs`: Command allowlist, command execution, and tool detection.
-
-Template source location:
-- `~/.config/plato/<template_name>/plato.toml`
-- plus any files/directories that belong to the template
-
----
-
-## Architecture & Setup Flow
-Execution flow:
-
-1. CLI parses either `<template_name> <project_name>` for `init`, or `--path <template_dir> <project_name>`
-2. Plato resolves the template source directory:
-   - from the template registry under `~/.config/plato`
-   - or directly from `--path`
-3. For `plato config`, Plato opens that template’s `plato.toml` in your editor
-4. Plato loads `plato.toml`
-5. Plato creates the target directory `./<project_name>`
-6. Plato scans the template directory
-7. Plato renders:
-   - file paths using `#...#` placeholders
-   - file contents using MiniJinja (`{{ ... }}`)
-8. Plato optionally runs language-specific setup:
-   - Python: venv + dependency sync/install
-   - Rust: optional `cargo init`, then `cargo fetch` or `cargo build`
-9. Plato optionally runs `git init`
-10. If setup fails at any point, the target directory is cleaned up automatically
-
-Important behavior:
-- `plato.toml` is configuration only and is **not copied** into the generated project.
-- Files ending in `.j2` or `.mj` are rendered as templates and then written without that extension.
-- Non-template files are copied as raw bytes.
-- Empty templates are supported.
-
----
-
-## Template Rendering Rules
-
-### Path placeholders
-Path rendering uses `#key#` placeholders.
-
-Supported path keys include:
-- built-in keys:
-  - `#project_name#`
-  - `#language_version#` for Python templates
-  - `#toolchain#` for Rust templates
-- custom keys from `[template.context]`
-
-Example path:
+Global app configuration lives at:
 
 ```text
-src/#project_name#/__init__.py.j2
+~/.config/plato/config.toml
 ```
 
-for project name `demo` becomes:
+Template names are explicit. Directory names do not define templates.
+
+```toml
+[plato]
+default_git_provider = "github"
+remote_config_dir = "~/.config/plato/remote_configs"
+
+[plato.git_hosts]
+# optional provider-specific host overrides
+# github = "github.company.test"
+# gitlab = "gitlab.company.test"
+# bitbucket = "bitbucket.company.test"
+
+[templates]
+py = { path = "~/.config/plato/templates/py" }
+api = { git = "gitlab:platform/api-template", rev = "main" }
+cli = { git = "github:owner/monorepo", subpath = "templates/cli" }
+
+[template_configs]
+api = "~/.config/plato/remote_configs/api.toml"
+py = "~/.config/plato/local_configs/py.toml"
+```
+
+### `[templates]`
+
+Supported entries:
+
+```toml
+name = { path = "~/path/to/template" }
+name = { git = "gitlab:group/repo", rev = "main", subpath = "templates/api" }
+```
+
+Configured Git templates do not require `--git`:
+
+```bash
+plato init api my-api
+```
+
+Ad-hoc Git templates do require `--git`:
+
+```bash
+plato init --git gitlab:group/repo my-api
+```
+
+### `[template_configs]`
+
+Override configs apply to both path and Git templates. During `init`, an explicit override config wins over a template-local `plato.toml`; Plato prints a warning if both exist.
+
+If no override exists and the template source has `plato.toml`, Plato uses the source config.
+
+If neither exists, Plato uses default template behavior and prints a warning.
+
+`plato config <name>` opens the override config if configured. If the override file does not exist yet, Plato creates it. If no override is configured, path templates can open their source `plato.toml`; remote templates fail with guidance to add `[template_configs]`.
+
+Malformed configs remain editable with `plato config`.
+
+## Git Templates
+
+Supported Git specs in configured `{ git = ... }` entries or `--git`:
 
 ```text
-src/demo/__init__.py
+github:owner/repo
+gitlab:owner/group/repo
+bitbucket:workspace/repo
+host:owner/group/repo
+git@host:owner/group/repo.git
+ssh://git@host/owner/group/repo.git
+https://host/owner/repo.git
 ```
 
-### File content placeholders
-File contents use MiniJinja syntax:
+Provider shorthand resolves to SSH remotes. For example:
+
+```text
+gitlab:owner/group/repo -> git@gitlab.com:owner/group/repo.git
+```
+
+`host:path` shorthand resolves to `git@host:path.git` and prints a warning that `git@` was added.
+
+Revision precedence:
+
+```text
+--rev > inline #rev > configured rev
+```
+
+Subpath precedence:
+
+```text
+--subpath > configured subpath
+```
+
+URL fragments such as `repo.git#v1.2.0` are treated as Plato revision syntax.
+
+### Git Authentication and Security
+
+Plato does not manage credentials. Authentication is delegated to system Git, SSH agent, and Git credential helpers.
+
+Plato rejects embedded credentials in Git URLs. Use SSH remotes or a configured Git credential helper instead.
+
+## Template Configuration (`plato.toml`)
+
+A template may contain `plato.toml`. This file is configuration only and is not copied into the generated project.
+
+```toml
+[plato]
+template_language = "base"   # base | python | py | rust | rs
+setup_git = false
+
+[template.context]
+# arbitrary key-value pairs for path and file content templates
+
+[python]
+language_version = "3"
+package_manager = "auto"     # auto | uv | pip
+project_scope = "auto"       # auto | base | requirements | install
+
+[python.pip]
+version_fallback = false
+
+[rust]
+toolchain = "stable"
+project_scope = "auto"       # auto | base | fetch | build
+project_type = "auto"        # auto | binary | bin | library | lib
+cargo_init = false
+```
+
+## Rendering Rules
+
+Path placeholders use `#key#` syntax:
+
+```text
+src/#project_name#/main.py.j2
+```
+
+File contents use MiniJinja:
 
 ```jinja2
 {{ project_name }}
@@ -109,470 +172,13 @@ File contents use MiniJinja syntax:
 {{ toolchain }}
 ```
 
-Custom values from `[template.context]` are available in both path rendering and file content templates. Built-in context values (`project_name`, `language_version`, `toolchain`) are merged with `[template.context]`; when the same key exists in both, `[template.context]` takes precedence.
+Files ending in `.j2` or `.mj` are rendered and written without that extension. Non-template files are copied as raw bytes. `plato.toml` is never copied.
 
-Example:
+## List Output
 
-```toml
-[template.context]
-author = "Alice"
-license = "MIT"
+```bash
+plato list
+plato list --verbose
 ```
 
-```jinja2
-# {{ project_name }}
-Author: {{ author }}
-License: {{ license }}
-```
-
-Example custom path usage:
-
-```toml
-[template.context]
-author = "alice"
-```
-
-A path like:
-
-```text
-docs/#author#/intro.md.j2
-```
-
-becomes:
-
-```text
-docs/alice/intro.md
-```
-
----
-
-## Configuration Reference (`plato.toml`)
-
-Each template must contain a `plato.toml` file.
-
-Most of this schema is used in per-template `plato.toml` files. The `extra_dirs` setting is special: it is read from the global config at `~/.config/plato/plato.toml` and extends template discovery for `plato init`, `plato config`, and `plato list`.
-
-Full schema:
-
-```toml
-[plato]
-template_language = "base"   # base | python | py | rust | rs
-setup_git = false             # default: false
-extra_dirs = []               # optional extra template directories (main ~/.config/plato only)
-
-[template.context]
-# arbitrary key-value pairs for path and file content templates
-# example:
-# author = "Alice"
-
-[python]
-language_version = "3"       # default: "3"
-package_manager = "auto"     # auto | uv | pip
-project_scope = "auto"       # auto | base | requirements | install
-
-[python.pip]
-version_fallback = false      # default: false
-
-[rust]
-toolchain = "stable"         # default: "stable"
-project_scope = "auto"       # auto | base | fetch | build
-project_type = "auto"        # auto | binary | bin | library | lib
-cargo_init = false            # default: false
-```
-
-### `[plato]`
-- `template_language`
-  - `base`: render files only, no language setup
-  - `python` / `py`: enable Python setup logic
-  - `rust` / `rs`: enable Rust setup logic
-- `setup_git`
-  - if `true`, Plato runs `git init` in the generated target
-  - default is `false`
-- `extra_dirs`
-  - optional list of additional absolute directories to search for templates
-  - read from the global config at `~/.config/plato/plato.toml`
-  - malformed paths and non-existent directories are skipped with a warning
-  - when names collide, later scanned directories win
-
-### CLI commands
-- `plato init <template_name> <project_name>`
-  - create `./<project_name>` from a named template in the registry
-- `plato init --path <template_dir> <project_name>`
-  - load a template directly from a filesystem path instead of the registry
-  - with `--path`, `init` accepts exactly one positional argument: `<project_name>`
-- `plato init --force ...`
-  - allow using an existing target directory instead of failing when it already exists
-  - use carefully: Plato may overwrite files in that directory, and if setup fails the target directory is cleaned up
-- `plato config <template_name>`
-  - opens the template’s `plato.toml` in your editor
-  - prefers `$VISUAL`, then `$EDITOR`, then falls back to `nano`
-  - parses `$VISUAL` / `$EDITOR` as shell-style words so values like `code -w` work
-  - parsing is intentionally limited to shell-like word splitting and quote removal; shell features such as variable expansion, command substitution, operators, and glob expansion are not interpreted
-- `plato list`
-  - prints discovered templates from `~/.config/plato` and any configured `extra_dirs`
-  - marks templates missing `plato.toml`
-
-### `[template.context]`
-Arbitrary string key-value pairs for path and content templates.
-
-### `[python]`
-- `language_version`
-  - passed to Python setup tools
-  - used in template context as `language_version`
-  - default: `"3"`
-- `package_manager`
-  - `auto`: prefer `uv` if installed, else use pip when a matching Python command exists under the current pip fallback policy
-  - `uv`: force `uv`
-  - `pip`: force `pip`
-- `project_scope`
-  - `auto`: infer from rendered project files
-  - `base`: create no Python environment or dependency install
-  - `requirements`: install dependencies only
-  - `install`: install the project itself
-
-### `[python.pip]`
-- `version_fallback`
-  - if `false`, pip setup requires the exact configured `python<language_version>` command
-  - if `true`, pip venv creation tries these commands in order:
-    1. `python<language_version>`
-    2. `python<major>`
-    3. `python`
-  - default: `false`
-  - fallback only affects interpreter command selection for venv creation; project installation may still fail if the fallback interpreter does not satisfy project metadata such as `requires-python`
-
-### `[rust]`
-- `toolchain`
-  - available in template content as `toolchain`
-  - default: `"stable"`
-- `project_scope`
-  - `auto`: infer from rendered project files
-  - `base`: no Cargo command after rendering
-  - `fetch`: run `cargo fetch`
-  - `build`: run `cargo build`
-- `project_type`
-  - `auto`: infer binary vs library from the rendered target
-  - `binary` / `bin`: binary project
-  - `library` / `lib`: library project
-- `cargo_init`
-  - `true`: run `cargo init --bin` or `cargo init --lib`
-  - `false`: skip `cargo init`
-  - default: `false`
-
----
-
-## Python Setup Behavior
-
-### Package manager detection
-Python package manager auto-detection currently works like this:
-1. if `uv` is installed, use `uv`
-2. else for pip:
-   - if `[python.pip].version_fallback = false`, require `python<language_version>`
-   - if `[python.pip].version_fallback = true`, accept any of:
-     - `python<language_version>`
-     - `python<major>`
-     - `python`
-3. else no Python setup is performed
-
-### Python scope detection
-Python `project_scope = "auto"` resolves as follows:
-- `install`
-  - when `pyproject.toml` exists and one of these package layouts exists:
-    - `src/<project_name>/__init__.py`
-    - `src/<project_name_with_dashes_replaced_by_underscores>/__init__.py`
-    - `<project_name>/__init__.py`
-    - `<project_name_with_dashes_replaced_by_underscores>/__init__.py`
-- `requirements`
-  - when `pyproject.toml` exists, or `requirements.txt` exists
-- `base`
-  - otherwise
-
-### Python setup commands
-If using `uv`:
-- always create `.venv` with `uv venv --python <version>`
-- `install` → `uv sync`
-- `requirements` → `uv sync --no-install-project`
-- `base` → do nothing after rendering
-
-If using `pip`:
-- create `.venv` with `python<version> -m venv .venv`
-- when `[python.pip].version_fallback = true`, venv creation falls back to `python<major>` and then `python`
-- `install` → `<target>/.venv/bin/python -m pip install -e .` plus detected dependency groups
-- `requirements` → `<target>/.venv/bin/python -m pip install -r <requirements file>`
-- if `requirements.txt` is missing but `pyproject.toml` exists, Plato may generate `.plato/requirements.txt` from `project.dependencies`, dependency groups, and legacy `tool.uv.dev-dependencies`
-
-Additional Python behavior:
-- Plato may generate a minimal `README.md` when needed for package installation
-- Plato may generate `.plato/requirements.txt` when pip needs requirements but only `pyproject.toml` metadata exists
-- current Python support is focused on modern `pyproject.toml` projects and `requirements.txt` workflows
-
-### Python template example: modern uv project
-
-Template tree:
-
-```text
-~/.config/plato/py/
-├── plato.toml
-├── pyproject.toml.j2
-├── README.md.j2
-└── src/
-    └── #project_name#/
-        ├── __init__.py
-        └── main.py.j2
-```
-
-`plato.toml`:
-
-```toml
-[plato]
-template_language = "python"
-setup_git = true
-
-[python]
-language_version = "3.12"
-package_manager = "uv"
-project_scope = "install"
-
-[template.context]
-author = "Alice"
-```
-
-`pyproject.toml.j2`:
-
-```toml
-[project]
-name = "{{ project_name }}"
-version = "0.1.0"
-description = "Generated by Plato"
-readme = "README.md"
-requires-python = ">={{ language_version }}"
-dependencies = []
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-```
-
-`src/#project_name#/main.py.j2`:
-
-```python
-from . import __name__
-
-
-def main() -> None:
-    print(f"hello from {__name__}")
-```
-
-### Python template example: requirements-only project
-
-```toml
-[plato]
-template_language = "python"
-setup_git = false
-
-[python]
-language_version = "3.11"
-package_manager = "auto"
-project_scope = "requirements"
-```
-
-A matching template may include only:
-- `requirements.txt`
-- application files
-- no installable package metadata
-
----
-
-## Rust Setup Behavior
-
-### Rust package manager detection
-Rust currently supports Cargo only:
-- if `cargo` is installed, use Cargo setup
-- otherwise no Rust setup is performed
-
-### Rust scope detection
-Rust `project_scope = "auto"` resolves as follows:
-- `base`
-  - if `Cargo.toml` does not exist in the rendered target
-- `build`
-  - if `Cargo.toml` exists and one of the following exists:
-    - `src/main.rs`
-    - `src/lib.rs`
-    - at least one `*.rs` file inside `src/bin/`
-- `fetch`
-  - if `Cargo.toml` exists but no buildable Rust target was detected
-
-### Rust type detection
-Rust `project_type = "auto"` resolves as follows:
-- if `Cargo.toml` does not exist, default to `binary`
-- otherwise prefer `binary` if binary markers are found
-- otherwise use `library` if library markers are found
-- otherwise default to `binary`
-
-Binary markers:
-- `src/main.rs`
-- `src/bin/`
-- `[[bin]]` in `Cargo.toml`
-
-Library markers:
-- `src/lib.rs`
-- `[lib]` in `Cargo.toml`
-
-### Rust setup commands
-If `cargo_init = true`:
-- `binary` → `cargo init --bin --vcs none`
-- `library` → `cargo init --lib --vcs none`
-
-Then scope is applied:
-- `build` → `cargo build`
-- `fetch` → `cargo fetch`
-- `base` → no Cargo command
-
-Important Rust rule:
-- if `cargo_init = false`, Plato assumes your template already contains a valid
-  Cargo project when you ask it to `fetch` or `build`
-- if `cargo_init = false` and there is no `Cargo.toml`, then auto scope becomes
-  `base` and Plato will only render files
-
-### Rust template example: empty scaffold via Cargo
-Use this when you want Cargo to create the package files.
-
-Template tree:
-
-```text
-~/.config/plato/rs-bin/
-└── plato.toml
-```
-
-`plato.toml`:
-
-```toml
-[plato]
-template_language = "rust"
-setup_git = false
-
-[rust]
-project_type = "binary"
-project_scope = "build"
-cargo_init = true
-```
-
-Result:
-- Plato creates the target directory
-- `cargo init --bin --vcs none`
-- `cargo build`
-
-### Rust template example: existing Cargo template
-Use this when your template already includes `Cargo.toml` and source files.
-
-Template tree:
-
-```text
-~/.config/plato/rs-lib/
-├── plato.toml
-├── Cargo.toml.j2
-├── README.md.j2
-└── src/
-    └── lib.rs.j2
-```
-
-`plato.toml`:
-
-```toml
-[plato]
-template_language = "rust"
-setup_git = true
-
-[rust]
-project_type = "library"
-project_scope = "build"
-cargo_init = false
-```
-
-`Cargo.toml.j2`:
-
-```toml
-[package]
-name = "{{ project_name }}"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-```
-
-`src/lib.rs.j2`:
-
-```rust
-pub fn greet() -> &'static str {
-    "hello from {{ project_name }}"
-}
-```
-
-### Rust template example: template-only render
-This is valid when you intentionally want rendered Rust files but no cargo init setup.
-
-```toml
-[plato]
-template_language = "rust"
-setup_git = false
-
-[rust]
-project_scope = "auto"
-project_type = "auto"
-cargo_init = false
-```
-
-If the rendered target has no `Cargo.toml`, auto scope becomes `base` and Plato
-just writes the files.
-
----
-
-## Base Template Example
-
-Base templates only render files and optionally initialize git.
-
-Template tree:
-
-```text
-~/.config/plato/base-docs/
-├── plato.toml
-├── README.md.j2
-└── docs/
-    └── intro.md.j2
-```
-
-`plato.toml`:
-
-```toml
-[plato]
-template_language = "base"
-setup_git = true
-
-[template.context]
-author = "Alice"
-team = "Platform"
-```
-
-`README.md.j2`:
-
-```md
-# {{ project_name }}
-
-Created by {{ author }} from the {{ team }} team.
-```
-
----
-
-## Supported Template Files
-- `plato.toml`: required, config only, never copied to target
-- `*.j2`, `*.mj`: rendered as MiniJinja templates, extension stripped
-- all other files: copied as-is
-- directories: reproduced in the target
-
----
-
-## Current Limitations
-- Python auto-detection currently focuses on `pyproject.toml` and `requirements.txt`
-- legacy Python packaging like `setup.py` is not yet part of the current setup path
-- Rust currently supports Cargo only
-- Rust auto-detection handles binary vs library, but is intentionally conservative
-- path templating uses `#key#` placeholders, while file contents use MiniJinja `{{ key }}` syntax
+`plato list` shows configured templates only and never performs network operations. Verbose mode also shows path/Git source details, rev, subpath, and override config paths.

@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::Result;
 use std::env::current_dir;
 use std::path::PathBuf;
 
@@ -7,19 +7,19 @@ pub(crate) mod languages;
 pub(crate) mod util;
 pub(crate) mod workspace;
 
-use crate::core::config::{Config, TemplateLanguage, get_global_plato_dir, parse_config};
+use crate::core::config::{Config, TemplateLanguage};
+use crate::core::git::TempCheckout;
 use crate::core::guard::ProjectGuard;
-use crate::core::registry::{TemplateRegistry, TemplateStatus};
+use crate::core::template_source::{TemplateRequest, TemplateResolver};
 use crate::languages::{LanguageSetup, LanguageSetupContext, PythonSetup, RustSetup};
-use crate::util::{
-    bail_if_target_path_exists, get_source_path_for_template, open_config_file, setup_git,
-};
+use crate::util::{bail_if_target_path_exists, open_config_file, setup_git};
 use crate::workspace::DefaultWorkspaceSetup;
 use crate::workspace::{WorkspaceSetup, WorkspaceSetupContext};
 
 #[derive(Clone, Debug)]
 pub enum InitSource {
     NamedTemplate { template_name: String },
+    GitTemplate { git_spec: String },
     TemplatePath { template_path: PathBuf },
 }
 
@@ -28,35 +28,51 @@ pub struct RunOptions {
     pub project_name: String,
     pub source: InitSource,
     pub force: bool,
+    pub rev: Option<String>,
+    pub subpath: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone)]
 struct ExecutionContext {
     project_name: String,
     force: bool,
     source_path: PathBuf,
     target_path: PathBuf,
     config: Config,
+    _source_cleanup: Option<TempCheckout>,
 }
 
 impl TryFrom<RunOptions> for ExecutionContext {
     type Error = anyhow::Error;
 
     fn try_from(options: RunOptions) -> Result<Self, Self::Error> {
-        let source_path = match options.source {
-            InitSource::TemplatePath { template_path } => template_path,
+        let resolver = TemplateResolver::from_global_config()?;
+        let prepared_source = match options.source {
+            InitSource::TemplatePath { template_path } => {
+                resolver.prepare(TemplateRequest::Path {
+                    path: template_path,
+                })?
+            }
+            InitSource::GitTemplate { git_spec } => resolver.prepare(TemplateRequest::Git {
+                spec: git_spec,
+                cli_rev: options.rev,
+                cli_subpath: options.subpath,
+            })?,
             InitSource::NamedTemplate { template_name } => {
-                get_source_path_for_template(template_name.as_str())?
+                resolver.prepare(TemplateRequest::Named {
+                    name: template_name,
+                    cli_rev: options.rev,
+                    cli_subpath: options.subpath,
+                })?
             }
         };
-        let source_config = parse_config(&source_path)?;
         let target_path = current_dir()?.join(&options.project_name);
         Ok(Self {
             project_name: options.project_name,
             force: options.force,
-            source_path,
+            source_path: prepared_source.source_path,
             target_path,
-            config: source_config,
+            config: prepared_source.config,
+            _source_cleanup: prepared_source.cleanup,
         })
     }
 }
@@ -67,37 +83,18 @@ impl TryFrom<RunOptions> for ExecutionContext {
 /// Returns an error if the global config cannot be loaded, the template cannot be found,
 /// or the editor cannot be started successfully.
 pub fn edit_config(template_name: &str) -> Result<()> {
-    let global_plato_dir = get_global_plato_dir()?;
-    let global_config = parse_config(&global_plato_dir).ok();
-    let fallback_dirs = Vec::new();
-    let extra_template_dirs = if let Some(config) = &global_config {
-        &config.plato.extra_dirs
-    } else {
-        &fallback_dirs
-    };
-    let registry = TemplateRegistry::build(&global_plato_dir, extra_template_dirs);
-    let (config, status) = registry.get(template_name)?;
-    match status {
-        TemplateStatus::Valid | TemplateStatus::MalformedConfig => open_config_file(config),
-        TemplateStatus::MissingConfig => bail!("No config file found for {template_name}"),
-    }
+    let resolver = TemplateResolver::from_global_config()?;
+    let config_path = resolver.config_path_for(template_name)?;
+    open_config_file(&config_path)
 }
 
 /// Displays all discovered templates.
 ///
 /// # Errors
 /// Returns an error if the global config cannot be loaded or the template registry cannot be built.
-pub fn display_templates() -> Result<()> {
-    let global_plato_dir = get_global_plato_dir()?;
-    let global_config = parse_config(&global_plato_dir).ok();
-    let fallback_dirs = Vec::new();
-    let extra_template_dirs = if let Some(config) = &global_config {
-        &config.plato.extra_dirs
-    } else {
-        &fallback_dirs
-    };
-    let registry = TemplateRegistry::build(&global_plato_dir, extra_template_dirs);
-    print!("{registry}");
+pub fn display_templates(verbose: bool) -> Result<()> {
+    let resolver = TemplateResolver::from_global_config()?;
+    print!("{}", resolver.format_templates(verbose));
     Ok(())
 }
 
@@ -113,10 +110,10 @@ pub fn run(options: RunOptions) -> Result<()> {
     bail_if_target_path_exists(&exec_ctx.target_path, exec_ctx.force)?;
 
     let mut guard = ProjectGuard::new(exec_ctx.target_path.clone());
-    run_workspace_setup(exec_ctx.clone(), &DefaultWorkspaceSetup)?;
+    run_workspace_setup(&exec_ctx, &DefaultWorkspaceSetup)?;
     match &exec_ctx.config.plato.template_language {
-        TemplateLanguage::Python => run_language_setup(exec_ctx, &PythonSetup),
-        TemplateLanguage::Rust => run_language_setup(exec_ctx, &RustSetup),
+        TemplateLanguage::Python => run_language_setup(&exec_ctx, &PythonSetup),
+        TemplateLanguage::Rust => run_language_setup(&exec_ctx, &RustSetup),
         TemplateLanguage::Base => Ok(()),
     }?;
     if should_setup_git {
@@ -126,7 +123,7 @@ pub fn run(options: RunOptions) -> Result<()> {
     Ok(())
 }
 
-fn run_language_setup<L>(exec_ctx: ExecutionContext, language_setup: &L) -> Result<()>
+fn run_language_setup<L>(exec_ctx: &ExecutionContext, language_setup: &L) -> Result<()>
 where
     L: LanguageSetup,
 {
@@ -135,7 +132,7 @@ where
     Ok(())
 }
 
-fn run_workspace_setup<W>(exec_ctx: ExecutionContext, workspace_setup: &W) -> Result<()>
+fn run_workspace_setup<W>(exec_ctx: &ExecutionContext, workspace_setup: &W) -> Result<()>
 where
     W: WorkspaceSetup,
 {

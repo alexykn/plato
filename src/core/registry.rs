@@ -1,152 +1,170 @@
-use anyhow::{Result, anyhow, bail};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fmt::{self, Display, Formatter};
-use std::fs::ReadDir;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
-use crate::core::config::parse_config;
+use crate::core::config::{GlobalConfig, TemplateEntry};
+use crate::core::path::expand_tilde;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TemplateKind {
+    Path,
+    Git,
+}
+
+impl Display for TemplateKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Path => write!(f, "path"),
+            Self::Git => write!(f, "git"),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
-pub(crate) enum TemplateStatus {
-    Valid,
-    MissingConfig,
-    MalformedConfig,
+pub(crate) struct TemplateRecord {
+    pub(crate) name: String,
+    pub(crate) entry: TemplateEntry,
+    pub(crate) config_override: Option<PathBuf>,
 }
 
-impl Display for TemplateStatus {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let label = match self {
-            Self::Valid => "ok",
-            Self::MissingConfig => "plato.toml missing",
-            Self::MalformedConfig => "plato.toml malformed",
-        };
-        write!(f, "{label}")
-    }
-}
-
-impl Display for TemplateRegistry {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let ordered_map = build_ordered_template_map(&self.content);
-        let max_length = self.content.keys().map(String::len).max().unwrap_or(0);
-
-        for (folder, mut templates) in ordered_map {
-            writeln!(f, "{}", folder.display())?;
-
-            templates.sort_by_key(|(name, _)| name.clone());
-            for (name, status) in templates {
-                writeln!(f, " - {name:<max_length$} | {status}")?;
-            }
-            writeln!(f)?;
+impl TemplateRecord {
+    pub(crate) fn kind(&self) -> TemplateKind {
+        match &self.entry {
+            TemplateEntry::Path { .. } => TemplateKind::Path,
+            TemplateEntry::Git { .. } => TemplateKind::Git,
         }
-        Ok(())
+    }
+
+    pub(crate) fn override_path(&self) -> Option<&Path> {
+        self.config_override.as_deref()
     }
 }
 
+#[derive(Debug, Clone, Default)]
 pub(crate) struct TemplateRegistry {
-    content: HashMap<String, (PathBuf, TemplateStatus)>,
+    records: BTreeMap<String, TemplateRecord>,
 }
 
 impl TemplateRegistry {
-    /// Builds a registry from the global template directory and any configured extra directories.
-    ///
-    /// # Errors
-    /// Returns an error if reading template directories fails in a way that prevents building the registry.
-    pub(crate) fn build(global_template_dir: &PathBuf, extra_template_dirs: &[PathBuf]) -> Self {
-        let mut dirs_to_check = vec![global_template_dir];
-        let validated_extra_dirs = validate_extra_dirs(extra_template_dirs);
-        dirs_to_check.extend(validated_extra_dirs);
+    pub(crate) fn from_config(config: &GlobalConfig) -> Self {
+        let records = config
+            .templates
+            .iter()
+            .map(|(name, entry)| {
+                let config_override = config
+                    .template_configs
+                    .get(name)
+                    .map(|path| expand_tilde(path).unwrap_or_else(|_| path.clone()));
+                (
+                    name.clone(),
+                    TemplateRecord {
+                        name: name.clone(),
+                        entry: entry.clone(),
+                        config_override,
+                    },
+                )
+            })
+            .collect();
+        Self { records }
+    }
 
-        let mut templates: HashMap<String, (PathBuf, TemplateStatus)> = HashMap::new();
-        for dir in dirs_to_check {
-            let Ok(entries) = std::fs::read_dir(dir) else {
-                eprintln!("WARNING: cannot read dir {}", dir.display());
-                continue;
+    pub(crate) fn get(&self, name: &str) -> Option<&TemplateRecord> {
+        self.records.get(name)
+    }
+
+    pub(crate) fn list(&self, verbose: bool) -> String {
+        let mut output = String::new();
+        output.push_str("NAME TYPE CONFIG\n");
+        for record in self.records.values() {
+            let config_status = if record.config_override.is_some() {
+                "override"
+            } else {
+                "source/default"
             };
-            templates.extend(yield_templates_from_dir(entries));
+            output.push_str(&format!(
+                "{} {} {}\n",
+                record.name,
+                record.kind(),
+                config_status
+            ));
+            if verbose {
+                output.push_str(&format_verbose_record(record));
+            }
         }
-        Self { content: templates }
+        output
     }
+}
 
-    fn check_self_is_empty(&self) -> Result<()> {
-        if self.content.is_empty() {
-            bail!("Template registry is empty. Check your ~/.config/plato folder!")
+fn format_verbose_record(record: &TemplateRecord) -> String {
+    let mut output = String::new();
+    match &record.entry {
+        TemplateEntry::Path { path } => {
+            output.push_str(&format!("  path = {}\n", path.display()));
         }
-        Ok(())
-    }
-
-    /// Returns the template directory and validity flag for a named template.
-    ///
-    /// # Errors
-    /// Returns an error if the registry is empty or the named template does not exist.
-    pub(crate) fn get(&self, name: &str) -> Result<&(PathBuf, TemplateStatus)> {
-        self.check_self_is_empty()?;
-        self.content
-            .get(name)
-            .ok_or_else(|| anyhow!("No template found for {name:?}"))
-    }
-}
-
-fn is_valid_dir(dir: &Path) -> bool {
-    dir.exists() && dir.is_dir()
-}
-
-fn is_regular_dir(dir: &Path) -> bool {
-    !dir.components()
-        .any(|comp| matches!(comp, Component::CurDir | Component::ParentDir))
-}
-
-fn validate_extra_dirs(extra_template_dirs: &[PathBuf]) -> Vec<&PathBuf> {
-    let mut validated_dirs = vec![];
-    for dir in extra_template_dirs {
-        if !is_valid_dir(dir) || !is_regular_dir(dir) {
-            eprintln!("Malformed or nonexistent extra directory {}", dir.display());
-            continue;
+        TemplateEntry::Git { git, rev, subpath } => {
+            output.push_str(&format!("  git = {git}\n"));
+            if let Some(rev) = rev {
+                output.push_str(&format!("  rev = {rev}\n"));
+            }
+            if let Some(subpath) = subpath {
+                output.push_str(&format!("  subpath = {}\n", subpath.display()));
+            }
         }
-        validated_dirs.push(dir);
     }
-    validated_dirs
+    if let Some(config_override) = &record.config_override {
+        output.push_str(&format!("  config = {}\n", config_override.display()));
+    }
+    output
 }
 
-fn validate_template(template_path: &Path) -> TemplateStatus {
-    if !template_path.join("plato.toml").is_file() {
-        return TemplateStatus::MissingConfig;
-    }
-    if parse_config(template_path).is_err() {
-        return TemplateStatus::MalformedConfig;
-    }
-    TemplateStatus::Valid
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::config::TemplateEntry;
+    use std::collections::HashMap;
 
-fn build_ordered_template_map(
-    content: &HashMap<String, (PathBuf, TemplateStatus)>,
-) -> BTreeMap<PathBuf, Vec<(String, TemplateStatus)>> {
-    let mut ordered_map: BTreeMap<PathBuf, Vec<(String, TemplateStatus)>> = BTreeMap::new();
-    for (name, (path, status)) in content {
-        let Some(parent) = path.parent() else {
-            continue;
-        };
-        ordered_map
-            .entry(parent.to_path_buf())
-            .or_default()
-            .push((name.clone(), status.clone()));
+    #[test]
+    fn lists_templates_in_stable_order() {
+        let mut config = GlobalConfig::default();
+        config.templates = HashMap::from([
+            (
+                "zed".to_string(),
+                TemplateEntry::Path {
+                    path: PathBuf::from("/tmp/zed"),
+                },
+            ),
+            (
+                "api".to_string(),
+                TemplateEntry::Git {
+                    git: "github:owner/repo".to_string(),
+                    rev: None,
+                    subpath: None,
+                },
+            ),
+        ]);
+        let registry = TemplateRegistry::from_config(&config);
+        let output = registry.list(false);
+        assert!(output.find("api git").unwrap() < output.find("zed path").unwrap());
     }
-    ordered_map
-}
 
-fn yield_templates_from_dir(
-    entries: ReadDir,
-) -> impl Iterator<Item = (String, (PathBuf, TemplateStatus))> {
-    entries.filter_map(|result| {
-        let entry = result.inspect_err(|e| eprintln!("WARNING: {e}")).ok()?;
-        // file_type() is cached by read_dir on Unix/Windows, no extra stat
-        let ft = entry.file_type().ok()?;
-        if !ft.is_dir() {
-            return None;
-        }
-        let path = entry.path();
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let status = validate_template(&path);
-
-        Some((name, (path, status)))
-    })
+    #[test]
+    fn verbose_list_includes_source_details() {
+        let mut config = GlobalConfig::default();
+        config.templates.insert(
+            "api".to_string(),
+            TemplateEntry::Git {
+                git: "github:owner/repo".to_string(),
+                rev: Some("main".to_string()),
+                subpath: Some(PathBuf::from("templates/api")),
+            },
+        );
+        config
+            .template_configs
+            .insert("api".to_string(), PathBuf::from("~/api.toml"));
+        let output = TemplateRegistry::from_config(&config).list(true);
+        assert!(output.contains("git = github:owner/repo"));
+        assert!(output.contains("rev = main"));
+        assert!(output.contains("subpath = templates/api"));
+        assert!(output.contains("config = "));
+    }
 }

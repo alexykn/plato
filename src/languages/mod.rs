@@ -25,12 +25,12 @@ pub(crate) struct LanguageSetupContext {
     pub(crate) config: Config,
 }
 
-impl From<ExecutionContext> for LanguageSetupContext {
-    fn from(ctx: ExecutionContext) -> Self {
+impl From<&ExecutionContext> for LanguageSetupContext {
+    fn from(ctx: &ExecutionContext) -> Self {
         LanguageSetupContext {
-            project_name: ctx.project_name,
-            target_path: ctx.target_path,
-            config: ctx.config,
+            project_name: ctx.project_name.clone(),
+            target_path: ctx.target_path.clone(),
+            config: ctx.config.clone(),
         }
     }
 }

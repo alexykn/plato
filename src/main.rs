@@ -14,9 +14,9 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Initialize new project from a template
+    /// Initialize new project from a configured template, --git spec, or --path
     Init {
-        /// The name of the template (e.g., py3.12)
+        /// Configured template name, or Git spec when --git is passed
         template_name: Option<String>,
 
         /// The name of the new project directory
@@ -29,33 +29,61 @@ enum Commands {
         /// Provide an explicit path to load the template from
         #[arg(short, long)]
         path: Option<PathBuf>,
+
+        /// Treat the template argument as an ad-hoc Git remote spec
+        #[arg(long)]
+        git: bool,
+
+        /// Git branch, tag, or commit to use for remote templates
+        #[arg(long)]
+        rev: Option<String>,
+
+        /// Subpath inside a remote repository to use as the template root
+        #[arg(long)]
+        subpath: Option<PathBuf>,
     },
-    /// Open the plato.toml for a template in editor
+    /// Open a configured template override or local plato.toml in editor
     Config {
         /// The name of the template (e.g., py3.12)
         template_name: String,
     },
-    /// List all templates in the template folder
-    List,
+    /// List configured templates
+    List {
+        /// Show source details for every configured template
+        #[arg(short, long)]
+        verbose: bool,
+    },
 }
 
 fn map_args(
     template_name: Option<String>,
     project_name: Option<String>,
     path: Option<PathBuf>,
+    git: bool,
 ) -> Result<(InitSource, String)> {
     if let Some(template_path) = path {
+        if git {
+            return Err(anyhow!("--git and --path cannot be used together."));
+        }
         let project_name = template_name.ok_or_else(|| {
             anyhow!("When passing --path 'path' only a single additional arg 'project_name' is expected.")
         })?;
         Ok((InitSource::TemplatePath { template_path }, project_name))
     } else {
         let project_name = project_name.ok_or_else(|| {
-            anyhow!("Wehn running without --path please pass 'template_name' and 'project_name' as args.")
+            anyhow!("When running without --path please pass 'template_name' and 'project_name' as args.")
         })?;
         let template_name = template_name.ok_or_else(|| {
-            anyhow!("Wehn running without --path please pass 'template_name' and 'project_name' as args.")
+            anyhow!("When running without --path please pass 'template_name' and 'project_name' as args.")
         })?;
+        if git {
+            return Ok((
+                InitSource::GitTemplate {
+                    git_spec: template_name,
+                },
+                project_name,
+            ));
+        }
         Ok((InitSource::NamedTemplate { template_name }, project_name))
     }
 }
@@ -76,17 +104,22 @@ fn try_run() -> anyhow::Result<()> {
             project_name,
             force,
             path,
+            git,
+            rev,
+            subpath,
         } => {
-            let (init_source, project_name) = map_args(template_name, project_name, path)?;
+            let (init_source, project_name) = map_args(template_name, project_name, path, git)?;
 
             plato::run(RunOptions {
                 source: init_source,
                 project_name,
                 force,
+                rev,
+                subpath,
             })
         }
         Commands::Config { template_name } => plato::edit_config(&template_name),
-        Commands::List => plato::display_templates(),
+        Commands::List { verbose } => plato::display_templates(verbose),
     }
 }
 
@@ -100,6 +133,7 @@ mod tests {
             Some("template_name".to_string()),
             Some("project_name".to_string()),
             None,
+            false,
         )
         .unwrap();
 
@@ -119,6 +153,7 @@ mod tests {
             Some("template_name".to_string()),
             None,
             Some(PathBuf::from("/some/path")),
+            false,
         )
         .unwrap();
 

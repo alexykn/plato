@@ -9,8 +9,10 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.102"
+blake3 = "1.8.5"
 clap = { version = "4.6.1", features = ["derive"] }
 directories = "6.0.0"
+fs2 = "0.4.3"
 fs_extra = "1.3.0"
 home = "0.5.12"
 minijinja = "2.20.0"

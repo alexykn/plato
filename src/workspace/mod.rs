@@ -23,13 +23,13 @@ pub(crate) struct WorkspaceSetupContext {
     pub(crate) target_path: PathBuf,
 }
 
-impl From<ExecutionContext> for WorkspaceSetupContext {
-    fn from(exec_ctx: ExecutionContext) -> Self {
-        let template_context = build_template_context(&exec_ctx);
+impl From<&ExecutionContext> for WorkspaceSetupContext {
+    fn from(exec_ctx: &ExecutionContext) -> Self {
+        let template_context = build_template_context(exec_ctx);
         Self {
             template_context,
-            source_path: exec_ctx.source_path,
-            target_path: exec_ctx.target_path,
+            source_path: exec_ctx.source_path.clone(),
+            target_path: exec_ctx.target_path.clone(),
         }
     }
 }

@@ -2,11 +2,10 @@ use anyhow::{Context, Result, bail};
 use regex::Regex;
 use std::env::var;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::fs::{File, create_dir_all};
+use std::path::Path;
 use std::process::Command;
 use std::sync::LazyLock;
-
-use crate::{TemplateRegistry, get_global_plato_dir, parse_config};
 
 static ALLOWED_CMD_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(git|cargo|uv|python\d*(?:\.\d+)*)$").expect("Invalid regex pattern")
@@ -31,12 +30,23 @@ fn get_default_editor() -> Result<(String, Vec<String>)> {
     Ok((command, args))
 }
 
-/// Opens the template's `plato.toml` in the user's editor.
+/// Opens a `plato.toml` file in the user's editor.
 ///
 /// # Errors
 /// Returns an error if the editor cannot be started or exits unsuccessfully.
-pub(crate) fn open_config_file(template_path: &Path) -> Result<()> {
-    let config_file_path = template_path.join("plato.toml");
+pub(crate) fn open_config_file(config_file_path: &Path) -> Result<()> {
+    if let Some(parent) = config_file_path.parent() {
+        create_dir_all(parent)
+            .with_context(|| format!("Could not create config directory {}", parent.display()))?;
+    }
+    if !config_file_path.exists() {
+        File::create(config_file_path).with_context(|| {
+            format!(
+                "Could not create config file {}",
+                config_file_path.display()
+            )
+        })?;
+    }
     let (command, mut args) = get_default_editor()?;
 
     args.push(config_file_path.to_string_lossy().to_string());
@@ -89,18 +99,4 @@ pub(crate) fn bail_if_target_path_exists(target_path: &Path, force: bool) -> Res
         )
     }
     Ok(())
-}
-
-pub(crate) fn get_source_path_for_template(template_name: &str) -> Result<PathBuf> {
-    let fallback_dirs = vec![];
-    let global_plato_dir = get_global_plato_dir()?;
-    let global_config = parse_config(&global_plato_dir).ok();
-    let extra_template_dirs = if let Some(config) = &global_config {
-        &config.plato.extra_dirs
-    } else {
-        &fallback_dirs
-    };
-    let registry = TemplateRegistry::build(&global_plato_dir, extra_template_dirs);
-    let (source_path, _) = registry.get(template_name)?;
-    Ok(source_path.clone())
 }
