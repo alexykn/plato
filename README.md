@@ -36,7 +36,6 @@ Template names are explicit. Directory names do not define templates.
 ```toml
 [plato]
 default_git_provider = "github"
-remote_config_dir = "~/.config/plato/remote_configs"
 
 [plato.git_hosts]
 # optional provider-specific host overrides
@@ -50,8 +49,8 @@ api = { git = "gitlab:platform/api-template", rev = "main" }
 cli = { git = "github:owner/monorepo", subpath = "templates/cli" }
 
 [template_configs]
-api = "~/.config/plato/remote_configs/api.toml"
-py = "~/.config/plato/local_configs/py.toml"
+api = "~/.config/plato/template_configs/api.toml"
+py = "~/.config/plato/template_configs/py.toml"
 ```
 
 ### `[templates]`

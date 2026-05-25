@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
 
-use crate::core::config::{GlobalConfig, TemplateEntry};
-use crate::core::path::expand_tilde;
+use crate::config::{GlobalConfig, TemplateEntry};
+use crate::fs::path::expand_tilde;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TemplateKind {
@@ -126,7 +126,7 @@ fn format_verbose_record(record: &TemplateRecord) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::config::TemplateEntry;
+    use crate::config::TemplateEntry;
     use std::collections::HashMap;
 
     #[test]

@@ -1,5 +1,5 @@
 use crate::Config;
-use crate::core::config::{RustProjectScopeConfig, RustProjectTypeConfig};
+use crate::config::{RustProjectScopeConfig, RustProjectTypeConfig};
 use crate::languages::LanguageSetupContext;
 use crate::languages::rust::shared::{get_rust_project_scope, get_rust_project_type};
 use anyhow::Result;

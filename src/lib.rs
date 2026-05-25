@@ -2,16 +2,20 @@ use anyhow::Result;
 use std::env::current_dir;
 use std::path::PathBuf;
 
-pub(crate) mod core;
+pub(crate) mod config;
+pub(crate) mod fs;
+pub(crate) mod git;
+pub(crate) mod guard;
 pub(crate) mod languages;
+pub(crate) mod templates;
 pub(crate) mod util;
 pub(crate) mod workspace;
 
-use crate::core::config::{Config, TemplateLanguage};
-use crate::core::git::TempCheckout;
-use crate::core::guard::ProjectGuard;
-use crate::core::template_source::{TemplateRequest, TemplateResolver};
+use crate::config::{Config, TemplateLanguage};
+use crate::git::TempCheckout;
+use crate::guard::ProjectGuard;
 use crate::languages::{LanguageSetup, LanguageSetupContext, PythonSetup, RustSetup};
+use crate::templates::{TemplateRequest, TemplateResolver};
 use crate::util::{bail_if_target_path_exists, open_config_file, setup_git};
 use crate::workspace::DefaultWorkspaceSetup;
 use crate::workspace::{WorkspaceSetup, WorkspaceSetupContext};
@@ -88,7 +92,7 @@ pub fn edit_config(template_name: &str) -> Result<()> {
     open_config_file(&config_path)
 }
 
-/// Displays all discovered templates.
+/// Displays all configured templates.
 ///
 /// # Errors
 /// Returns an error if the global config cannot be loaded or the template registry cannot be built.

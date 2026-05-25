@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fs::create_dir_all;
 use std::path::PathBuf;
 
-use crate::{ExecutionContext, core::config::TemplateLanguage};
+use crate::{ExecutionContext, config::TemplateLanguage};
 
 use super::workspace::setup::WorkspaceBuilder;
 

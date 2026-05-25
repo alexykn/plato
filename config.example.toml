@@ -1,31 +1,23 @@
 # ==============================================================================
 # Plato Global Configuration Example (config.toml)
 #
-# Save this file as ~/.config/plato/config.toml to customize your global template
-# settings, remote Git providers, and template registries.
+# Save this file as ~/.config/plato/config.toml to customize global template
+# settings, remote Git providers, and explicit template mappings.
 # ==============================================================================
 
 [plato]
-# The default Git provider to use when parsing shorthand template specs
-# (e.g. "username/repo" with no host prefix).
+# The default Git provider to use when parsing shorthand Git specs such as
+# "owner/repo" with no provider or host prefix.
 #
 # Supported options: "github" (default), "gitlab", "bitbucket"
 default_git_provider = "github"
-
-# The directory where configuration overrides (plato.toml files) for remote
-# Git templates are searched. This is highly useful for templates hosted on
-# remote repositories that do not have their own plato.toml files inside them.
-#
-# Default: "~/.config/plato/remote_configs"
-remote_config_dir = "~/.config/plato/remote_configs"
 
 
 # ------------------------------------------------------------------------------
 # Git Provider Custom Host Overrides
 # ------------------------------------------------------------------------------
 [plato.git_hosts]
-# You can override the domains for the built-in providers to point to
-# private, self-hosted corporate instances of GitHub, GitLab, or Bitbucket.
+# Override built-in provider domains to point at private/self-hosted instances.
 #
 # Default values used when not configured:
 # - github: "github.com"
@@ -33,16 +25,16 @@ remote_config_dir = "~/.config/plato/remote_configs"
 # - bitbucket: "bitbucket.org"
 #
 # Examples:
-github = "github.company.com"
+github = "github.company.test"
 gitlab = "gitlab.company.test"
-bitbucket = "bitbucket.internal.company.com"
+bitbucket = "bitbucket.company.test"
 
 
 # ------------------------------------------------------------------------------
 # Configured Templates Registry
 # ------------------------------------------------------------------------------
-# This table maps friendly template names to their source paths or Git repositories.
-# When configured here, you can run: `plato init <name> <project_name>`
+# Template names are explicit. Directory names are not discovered as templates.
+# When configured here, you can run: `plato init <name> <project_name>`.
 [templates]
 
 # 1. Local Path Template
@@ -50,27 +42,25 @@ bitbucket = "bitbucket.internal.company.com"
 # Tilde expansion (~) is supported.
 local_python = { path = "~/templates/py-base" }
 
-# 2. Shorthand Remote Git Template
-# Uses your configured default Git provider (and custom host override if defined).
-# Syntax: "[provider]:[owner]/[repo]"
+# 2. Provider Remote Git Template
+# Uses the selected provider host and normalizes to an SSH remote.
 # Example below translates to: git@gitlab.com:development/api-boilerplate.git
 team_api = { git = "gitlab:development/api-boilerplate" }
 
 # 3. Detailed Remote Git Template
-# Allows checking out a specific branch/tag/commit revision and pulling from a
-# nested subdirectory (subpath) within a repository (e.g., monorepos).
+# Allows checking out a specific branch/tag/commit revision and using a nested
+# subdirectory within a repository.
 axum_service = { git = "github:rust-guild/microservices-monorepo", rev = "v2.1.0", subpath = "templates/axum-service" }
 
-# 4. Custom SSH/HTTPS Git Template
-# Direct Git remote URL.
-custom_git = { git = "git@custom-git-server.com:templates/rust-base.git", rev = "main" }
+# 4. Custom SSH Git Template
+custom_git = { git = "git@git.company.test:templates/rust-base.git", rev = "main" }
 
 
 # ------------------------------------------------------------------------------
 # Template Configuration Overrides
 # ------------------------------------------------------------------------------
-# This table maps friendly template names to an external `plato.toml` file.
-# Useful when using remote Git templates that do not contain a committed `plato.toml`.
+# This table maps template names to external template config files.
+# Overrides win over source plato.toml files.
 [template_configs]
-team_api = "~/.config/plato/remote_configs/team_api.toml"
-axum_service = "~/.config/plato/remote_configs/axum_service.toml"
+team_api = "~/.config/plato/template_configs/team_api.toml"
+axum_service = "~/.config/plato/template_configs/axum_service.toml"

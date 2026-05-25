@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::path::PathBuf;
 
 use crate::{
-    core::config::{Config, PythonProjectScopeConfig},
+    config::{Config, PythonProjectScopeConfig},
     languages::LanguageSetupContext,
 };
 

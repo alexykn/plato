@@ -1,13 +1,13 @@
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 
-use crate::core::config::{
-    Config, GlobalConfig, TemplateEntry, get_global_config_path, parse_config_file,
-    parse_global_config_file,
+use crate::config::{
+    Config, GlobalConfig, TemplateEntry, get_global_config_path, parse_global_config_file,
 };
-use crate::core::git::{GitTemplateFetcher, TempCheckout, merge_git_template_spec};
-use crate::core::path::expand_tilde;
-use crate::core::registry::{TemplateRecord, TemplateRegistry};
+use crate::fs::path::expand_tilde;
+use crate::git::{GitTemplateFetcher, TempCheckout, merge_git_template_spec};
+use crate::templates::registry::TemplateRegistry;
+use crate::templates::selection::{config_path_for, select_ad_hoc_config, select_named_config};
 
 #[derive(Debug, Clone)]
 pub(crate) enum TemplateRequest {
@@ -82,44 +82,11 @@ impl TemplateResolver {
     }
 
     pub(crate) fn config_path_for(&self, template_name: &str) -> Result<PathBuf> {
-        let Some(record) = self.registry.get(template_name) else {
-            bail!("No configured template found for {template_name:?}");
-        };
-
-        if let Some(config_override) = record.override_path() {
-            return Ok(config_override.to_path_buf());
-        }
-
-        match &record.entry {
-            TemplateEntry::Path { path } => {
-                let source_path = expand_tilde(path)?;
-                let source_config = source_path.join("plato.toml");
-                if source_config.exists() {
-                    return Ok(source_config);
-                }
-                let suggested = self.suggested_override_path(template_name)?;
-                bail!(
-                    "Template {template_name:?} has no source plato.toml and no [template_configs] override. Add: [template_configs] {template_name} = \"{}\"",
-                    suggested.display()
-                )
-            }
-            TemplateEntry::Git { .. } => {
-                let suggested = self.suggested_override_path(template_name)?;
-                bail!(
-                    "Remote template {template_name:?} has no [template_configs] override. Add: [template_configs] {template_name} = \"{}\"",
-                    suggested.display()
-                )
-            }
-        }
+        config_path_for(&self.registry, template_name)
     }
 
     pub(crate) fn format_templates(&self, verbose: bool) -> String {
         self.registry.list(verbose)
-    }
-
-    fn suggested_override_path(&self, template_name: &str) -> Result<PathBuf> {
-        Ok(expand_tilde(&self.global_config.plato.remote_config_dir)?
-            .join(format!("{template_name}.toml")))
     }
 
     fn prepare_named(
@@ -135,7 +102,7 @@ impl TemplateResolver {
         match &record.entry {
             TemplateEntry::Path { path } => {
                 let source_path = expand_tilde(path)?;
-                let config = Self::select_named_config(name, &source_path, record)?;
+                let config = select_named_config(name, &source_path, record)?;
                 Ok(PreparedTemplateSource {
                     source_path,
                     config,
@@ -153,7 +120,7 @@ impl TemplateResolver {
                 )?;
                 let fetcher = GitTemplateFetcher::from_user_cache_dir()?;
                 let checkout = fetcher.prepare_checkout(&spec)?;
-                let config = Self::select_named_config(name, &checkout.source_path, record)?;
+                let config = select_named_config(name, &checkout.source_path, record)?;
                 let source_path = checkout.source_path.clone();
                 Ok(PreparedTemplateSource {
                     source_path,
@@ -192,47 +159,12 @@ impl TemplateResolver {
             cleanup: None,
         })
     }
-
-    fn select_named_config(
-        name: &str,
-        source_path: &Path,
-        record: &TemplateRecord,
-    ) -> Result<Config> {
-        let source_config = source_path.join("plato.toml");
-        if let Some(config_override) = record.override_path() {
-            if source_config.exists() {
-                eprintln!(
-                    "WARNING: Template {name:?} has both [template_configs] override and source plato.toml. Using override config."
-                );
-            }
-            return parse_config_file(config_override);
-        }
-
-        if source_config.exists() {
-            return parse_config_file(&source_config);
-        }
-
-        eprintln!(
-            "WARNING: Template {name:?} has no plato.toml and no [template_configs] override. Using default template configuration."
-        );
-        Ok(Config::default())
-    }
-}
-
-fn select_ad_hoc_config(source_path: &Path, label: &str) -> Result<Config> {
-    let source_config = source_path.join("plato.toml");
-    if source_config.exists() {
-        return parse_config_file(&source_config);
-    }
-
-    eprintln!("WARNING: {label} has no plato.toml. Using default template configuration.");
-    Ok(Config::default())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::config::{GlobalConfig, TemplateEntry};
+    use crate::config::{GlobalConfig, TemplateEntry};
     use std::collections::HashMap;
 
     #[test]

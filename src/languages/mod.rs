@@ -2,7 +2,7 @@ use anyhow::{Result, bail};
 use std::path::PathBuf;
 
 use crate::ExecutionContext;
-use crate::core::config::Config;
+use crate::config::Config;
 use crate::languages::python::pip::PipPackageManagerSetup;
 use crate::languages::python::shared::get_python_package_manager;
 use crate::languages::rust::RustPackageManagerSetup;

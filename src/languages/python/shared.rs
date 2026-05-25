@@ -1,4 +1,4 @@
-use crate::core::config::PythonPackageManagerConfig;
+use crate::config::PythonPackageManagerConfig;
 use crate::languages::LanguageSetupContext;
 use crate::languages::python::{PythonPackageManager, PythonProjectScope};
 use crate::util::is_installed;
