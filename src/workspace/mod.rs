@@ -2,7 +2,6 @@ use anyhow::Result;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use std::fs::create_dir_all;
 use std::path::PathBuf;
 
 use crate::{
@@ -12,10 +11,13 @@ use crate::{
     names::{ProjectNameSet, PythonNameSet, RustNameSet},
 };
 
-use super::workspace::setup::WorkspaceBuilder;
+use self::builder::WorkspaceBuilder;
+use self::rendered::RenderedWorkspace;
 
+pub(crate) mod builder;
+pub(crate) mod content;
 pub(crate) mod path_rewrite;
-pub(crate) mod setup;
+pub(crate) mod rendered;
 
 #[derive(Serialize, Debug, Clone)]
 pub(crate) struct TemplateContext {
@@ -24,68 +26,59 @@ pub(crate) struct TemplateContext {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct WorkspaceSetupContext {
+pub(crate) struct WorkspaceRenderContext {
     pub(crate) template_context: TemplateContext,
     pub(crate) path_replacements: BTreeMap<String, PathReplacementConfig>,
     pub(crate) source_path: PathBuf,
-    pub(crate) target_path: PathBuf,
 }
 
-impl From<&ExecutionContext> for WorkspaceSetupContext {
+impl From<&ExecutionContext> for WorkspaceRenderContext {
     fn from(exec_ctx: &ExecutionContext) -> Self {
-        let template_context = build_template_context(exec_ctx);
         Self {
-            template_context,
+            template_context: build_template_context(exec_ctx),
             path_replacements: exec_ctx.config.path.replace.clone(),
             source_path: exec_ctx.source_path.clone(),
-            target_path: exec_ctx.target_path.clone(),
         }
     }
 }
 
 fn build_template_context(exec_ctx: &ExecutionContext) -> TemplateContext {
+    build_template_context_parts(&exec_ctx.project_name, &exec_ctx.config)
+}
+
+pub(crate) fn build_template_context_parts(
+    project_name: &str,
+    config: &crate::config::Config,
+) -> TemplateContext {
     let mut template_context: HashMap<String, String> = HashMap::new();
-    let project_names = ProjectNameSet::derive(&exec_ctx.project_name);
+    let project_names = ProjectNameSet::derive(project_name);
 
     project_names.insert_context(&mut template_context);
-    match &exec_ctx.config.plato.template_language {
+    match &config.plato.template_language {
         TemplateLanguage::Python => {
             PythonNameSet::from_project(&project_names).insert_context(&mut template_context);
             template_context.insert(
                 "language_version".to_string(),
-                exec_ctx.config.python.language_version.clone(),
+                config.python.language_version.clone(),
             );
         }
         TemplateLanguage::Rust => {
             RustNameSet::from_project(&project_names).insert_context(&mut template_context);
-            template_context.insert(
-                "toolchain".to_string(),
-                exec_ctx.config.rust.toolchain.clone(),
-            );
+            template_context.insert("toolchain".to_string(), config.rust.toolchain.clone());
         }
         TemplateLanguage::Base => {}
     }
 
-    template_context.extend(exec_ctx.config.template.context.clone());
+    template_context.extend(config.template.context.clone());
 
     TemplateContext {
         context: template_context,
     }
 }
 
-pub(crate) trait WorkspaceSetup {
-    fn setup(&self, ctx: WorkspaceSetupContext) -> Result<()>;
-}
-
-pub(crate) struct DefaultWorkspaceSetup;
-
-impl WorkspaceSetup for DefaultWorkspaceSetup {
-    fn setup(&self, ctx: WorkspaceSetupContext) -> Result<()> {
-        create_dir_all(&ctx.target_path)?;
-        WorkspaceBuilder::from_source(&ctx.source_path)?
-            .rewrite_paths(&ctx.template_context, &ctx.path_replacements)?
-            .render_templates(&ctx.template_context)?
-            .flush_to_disk(&ctx.target_path)?;
-        Ok(())
-    }
+pub(crate) fn render_workspace(ctx: &WorkspaceRenderContext) -> Result<RenderedWorkspace> {
+    Ok(WorkspaceBuilder::from_source(&ctx.source_path)?
+        .rewrite_paths(&ctx.template_context, &ctx.path_replacements)?
+        .render_templates(&ctx.template_context)?
+        .build())
 }

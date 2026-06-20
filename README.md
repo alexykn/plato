@@ -8,6 +8,9 @@ Plato is a local project scaffolding tool. It renders configured templates into 
 plato init <template_name> <project_name> [--rev <rev>] [--subpath <path>] [--force]
 plato init --git <git_spec> <project_name> [--rev <rev>] [--subpath <path>] [--force]
 plato init --path <template_dir> <project_name> [--force]
+plato val <template_name> <project_name> [--rev <rev>] [--subpath <path>]
+plato val --git <git_spec> <project_name> [--rev <rev>] [--subpath <path>]
+plato val --path <template_dir> <project_name>
 plato config <template_name>
 plato list [-v|--verbose]
 ```
@@ -19,6 +22,7 @@ plato init py my-app
 plato init api my-api --rev main
 plato init --git gitlab:group/templates/api my-api
 plato init --path ~/src/my-template demo
+plato val py my-app
 plato config api
 plato list --verbose
 ```
@@ -128,6 +132,18 @@ Plato does not manage credentials. Authentication is delegated to system Git, SS
 
 Plato rejects embedded credentials in Git URLs. Use SSH remotes or a configured Git credential helper instead.
 
+## Validation
+
+`plato val` validates a template in memory. It resolves the same template sources as
+`plato init`, renders the workspace with the supplied project name, applies path
+rewrites, and checks supported template assumptions without creating the target
+project directory.
+
+It does not run setup tools such as `uv`, `pip`, `cargo`, or `git init`, so it
+does not prove dependency installation succeeds. It is intended to catch template
+rendering, path rewrite, and supported language metadata/configuration errors
+before project creation.
+
 ## Template Configuration (`plato.toml`)
 
 A template may contain `plato.toml`. This file is configuration only and is not copied into the generated project.
@@ -187,7 +203,7 @@ cargo_init = false
 
 `[python.install]` applies only when the resolved Python project scope is
 `install` or `requirements`. Plato passes only explicitly configured selectors;
-it does not create, infer, or validate dependency groups/extras.
+it does not create or infer dependency groups/extras.
 
 | Resolved setup path | `extras` | `groups` |
 | --- | --- | --- |
@@ -200,6 +216,22 @@ it does not create, infer, or validate dependency groups/extras.
 package manager, so Plato can install them through project metadata instead of
 guessing from template files. `extras` are passed to editable installs as
 targets such as `.[cli]`.
+
+For Python templates, Plato validates explicit setup assumptions after rendering
+and before running setup commands. It validates that:
+
+- `pyproject.toml` parses when present,
+- configured `python.install.groups` are compatible with the resolved setup path,
+- configured `python.install.groups` exist under `[dependency-groups]` for
+  modern `uv sync` setup,
+- configured `python.install.extras` are compatible with the resolved setup path,
+- configured `python.install.extras` exist under
+  `[project.optional-dependencies]` for modern `uv sync` setup,
+- files referenced by `[project].readme` exist when the readme is a file path.
+
+Plato still does not infer layouts, create dependency groups/extras, or rewrite
+package paths unless the template explicitly asks for that through rendering or
+`[path.replace]`.
 
 ## Rendering Rules
 

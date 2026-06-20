@@ -14,6 +14,7 @@ use crate::languages::rust::{
 use crate::languages::python::{
     PythonPackageManager, PythonPackageManagerSetup, PythonSetupContext, uv::UvPackageManagerSetup,
 };
+use crate::validation::files::FilesystemProjectFiles;
 
 pub(crate) mod python;
 pub(crate) mod rust;
@@ -37,6 +38,17 @@ impl From<&ExecutionContext> for LanguageSetupContext {
 
 pub(crate) trait LanguageSetup {
     fn setup(&self, ctx: LanguageSetupContext) -> Result<()>;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SetupPlan<M> {
+    pub(crate) mode: M,
+}
+
+impl<M> SetupPlan<M> {
+    pub(crate) const fn new(mode: M) -> Self {
+        Self { mode }
+    }
 }
 
 pub(crate) struct PythonSetup;
@@ -73,8 +85,11 @@ fn run_python_setup<P>(language_ctx: LanguageSetupContext, package_manager: &P) 
 where
     P: PythonPackageManagerSetup,
 {
-    let python_ctx = PythonSetupContext::try_from(language_ctx)?;
-    package_manager.setup(python_ctx)?;
+    let python_ctx = PythonSetupContext::try_from_language(language_ctx, package_manager.manager());
+    let files = FilesystemProjectFiles::new(python_ctx.target_path.clone());
+    let metadata = python::project::metadata::load_python_project_metadata(&files)?;
+    let plan = python::project::plan::resolve_python_setup_plan(&python_ctx, &metadata)?;
+    package_manager.setup(python_ctx, plan)?;
     Ok(())
 }
 

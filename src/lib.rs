@@ -11,6 +11,7 @@ pub(crate) mod names;
 pub(crate) mod rendering;
 pub(crate) mod templates;
 pub(crate) mod util;
+pub(crate) mod validation;
 pub(crate) mod workspace;
 
 use crate::config::Config;
@@ -23,8 +24,8 @@ use crate::guard::ProjectGuard;
 use crate::languages::{LanguageSetup, LanguageSetupContext, PythonSetup, RustSetup};
 use crate::templates::{TemplateRequest, TemplateResolver};
 use crate::util::{bail_if_target_path_exists, open_config_file};
-use crate::workspace::DefaultWorkspaceSetup;
-use crate::workspace::{WorkspaceSetup, WorkspaceSetupContext};
+use crate::validation::{ValidationProjectContext, validate_rendered_project};
+use crate::workspace::{WorkspaceRenderContext, render_workspace};
 
 #[derive(Clone, Debug)]
 pub enum InitSource {
@@ -42,6 +43,21 @@ pub struct RunOptions {
     pub subpath: Option<PathBuf>,
 }
 
+#[derive(Clone, Debug)]
+pub struct ValidateOptions {
+    pub project_name: String,
+    pub source: InitSource,
+    pub rev: Option<String>,
+    pub subpath: Option<PathBuf>,
+}
+
+struct PreparedTemplateContext {
+    project_name: String,
+    source_path: PathBuf,
+    config: Config,
+    source_cleanup: Option<TempCheckout>,
+}
+
 struct ExecutionContext {
     project_name: String,
     force: bool,
@@ -55,36 +71,55 @@ impl TryFrom<RunOptions> for ExecutionContext {
     type Error = anyhow::Error;
 
     fn try_from(options: RunOptions) -> Result<Self, Self::Error> {
-        let resolver = TemplateResolver::from_global_config()?;
-        let prepared_source = match options.source {
-            InitSource::TemplatePath { template_path } => {
-                resolver.prepare(TemplateRequest::Path {
-                    path: template_path,
-                })?
-            }
-            InitSource::GitTemplate { git_spec } => resolver.prepare(TemplateRequest::Git {
-                spec: git_spec,
-                cli_rev: options.rev,
-                cli_subpath: options.subpath,
-            })?,
-            InitSource::NamedTemplate { template_name } => {
-                resolver.prepare(TemplateRequest::Named {
-                    name: template_name,
-                    cli_rev: options.rev,
-                    cli_subpath: options.subpath,
-                })?
-            }
-        };
-        let target_path = current_dir()?.join(&options.project_name);
+        let prepared = prepare_template_context(
+            options.source,
+            options.project_name,
+            options.rev,
+            options.subpath,
+        )?;
+        let target_path = current_dir()?.join(&prepared.project_name);
         Ok(Self {
-            project_name: options.project_name,
+            project_name: prepared.project_name,
             force: options.force,
-            source_path: prepared_source.source_path,
+            source_path: prepared.source_path,
             target_path,
-            config: prepared_source.config,
-            _source_cleanup: prepared_source.cleanup,
+            config: prepared.config,
+            _source_cleanup: prepared.source_cleanup,
         })
     }
+}
+
+fn prepare_template_context(
+    source: InitSource,
+    project_name: String,
+    rev: Option<String>,
+    subpath: Option<PathBuf>,
+) -> Result<PreparedTemplateContext> {
+    let resolver = TemplateResolver::from_global_config()?;
+    let prepared_source = match source {
+        InitSource::TemplatePath { template_path } => resolver.prepare(TemplateRequest::Path {
+            path: template_path,
+        })?,
+        InitSource::GitTemplate { git_spec } => resolver.prepare(TemplateRequest::Git {
+            spec: git_spec,
+            cli_rev: rev,
+            cli_subpath: subpath,
+        })?,
+        InitSource::NamedTemplate { template_name } => {
+            resolver.prepare(TemplateRequest::Named {
+                name: template_name,
+                cli_rev: rev,
+                cli_subpath: subpath,
+            })?
+        }
+    };
+
+    Ok(PreparedTemplateContext {
+        project_name,
+        source_path: prepared_source.source_path,
+        config: prepared_source.config,
+        source_cleanup: prepared_source.cleanup,
+    })
 }
 
 /// Opens the selected template config in the user's editor.
@@ -119,8 +154,12 @@ pub fn run(options: RunOptions) -> Result<()> {
     let should_setup_git = exec_ctx.config.plato.setup_git;
     bail_if_target_path_exists(&exec_ctx.target_path, exec_ctx.force)?;
 
+    let rendered = render_workspace(&WorkspaceRenderContext::from(&exec_ctx))?;
+    let report = validate_rendered_project(&ValidationProjectContext::from(&exec_ctx), &rendered)?;
+    report.into_result()?;
+
     let mut guard = ProjectGuard::new(exec_ctx.target_path.clone());
-    run_workspace_setup(&exec_ctx, &DefaultWorkspaceSetup)?;
+    rendered.flush_to_disk(&exec_ctx.target_path)?;
     match &exec_ctx.config.plato.template_language {
         TemplateLanguage::Python => run_language_setup(&exec_ctx, &PythonSetup),
         TemplateLanguage::Rust => run_language_setup(&exec_ctx, &RustSetup),
@@ -131,6 +170,26 @@ pub fn run(options: RunOptions) -> Result<()> {
     }
     guard.release();
     Ok(())
+}
+
+/// Validate a template without writing a project or running setup commands.
+///
+/// # Errors
+/// Returns an error if source resolution, rendering, or validation fails.
+pub fn validate(options: ValidateOptions) -> Result<()> {
+    let prepared = prepare_template_context(
+        options.source,
+        options.project_name,
+        options.rev,
+        options.subpath,
+    )?;
+    let render_ctx = WorkspaceRenderContext::from(&prepared);
+    let rendered = render_workspace(&render_ctx)?;
+    let report = validate_rendered_project(&ValidationProjectContext::from(&prepared), &rendered)?;
+    if !report.has_errors() {
+        report.print();
+    }
+    report.into_result()
 }
 
 fn git_setup_options(config: &Config) -> GitSetupOptions<'_> {
@@ -169,11 +228,33 @@ where
     Ok(())
 }
 
-fn run_workspace_setup<W>(exec_ctx: &ExecutionContext, workspace_setup: &W) -> Result<()>
-where
-    W: WorkspaceSetup,
-{
-    let workspace_ctx = WorkspaceSetupContext::from(exec_ctx);
-    workspace_setup.setup(workspace_ctx)?;
-    Ok(())
+impl From<&ExecutionContext> for ValidationProjectContext {
+    fn from(ctx: &ExecutionContext) -> Self {
+        Self {
+            project_name: ctx.project_name.clone(),
+            config: ctx.config.clone(),
+        }
+    }
+}
+
+impl From<&PreparedTemplateContext> for ValidationProjectContext {
+    fn from(ctx: &PreparedTemplateContext) -> Self {
+        Self {
+            project_name: ctx.project_name.clone(),
+            config: ctx.config.clone(),
+        }
+    }
+}
+
+impl From<&PreparedTemplateContext> for WorkspaceRenderContext {
+    fn from(ctx: &PreparedTemplateContext) -> Self {
+        Self {
+            template_context: workspace::build_template_context_parts(
+                &ctx.project_name,
+                &ctx.config,
+            ),
+            path_replacements: ctx.config.path.replace.clone(),
+            source_path: ctx.source_path.clone(),
+        }
+    }
 }

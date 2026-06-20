@@ -6,10 +6,10 @@ use crate::{
     languages::LanguageSetupContext,
 };
 
-use self::{install::ensure_supported_scope, shared::get_python_project_scope};
+use self::shared::get_python_project_scope;
 
-pub(crate) mod install;
 pub(crate) mod pip;
+pub(crate) mod project;
 pub(crate) mod shared;
 pub(crate) mod uv;
 
@@ -20,7 +20,7 @@ pub(crate) enum PythonProjectScope {
     Base,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PythonPackageManager {
     Pip,
     Uv,
@@ -31,12 +31,14 @@ pub(crate) struct PythonSetupContext {
     pub(crate) target_path: PathBuf,
     pub(crate) config: Config,
     pub(crate) project_scope: PythonProjectScope,
+    pub(crate) package_manager: PythonPackageManager,
 }
 
-impl TryFrom<LanguageSetupContext> for PythonSetupContext {
-    type Error = anyhow::Error;
-
-    fn try_from(ctx: LanguageSetupContext) -> Result<Self, Self::Error> {
+impl PythonSetupContext {
+    pub(crate) fn try_from_language(
+        ctx: LanguageSetupContext,
+        package_manager: PythonPackageManager,
+    ) -> Self {
         let project_scope = match ctx.config.python.project_scope {
             PythonProjectScopeConfig::Auto => {
                 get_python_project_scope(&ctx.target_path, &ctx.project_name)
@@ -46,16 +48,17 @@ impl TryFrom<LanguageSetupContext> for PythonSetupContext {
             PythonProjectScopeConfig::Requirements => PythonProjectScope::Requirements,
         };
 
-        ensure_supported_scope(project_scope, &ctx.config.python.install)?;
-
-        Ok(Self {
+        Self {
             target_path: ctx.target_path,
             config: ctx.config,
             project_scope,
-        })
+            package_manager,
+        }
     }
 }
 
 pub(crate) trait PythonPackageManagerSetup {
-    fn setup(&self, ctx: PythonSetupContext) -> Result<()>;
+    fn manager(&self) -> PythonPackageManager;
+
+    fn setup(&self, ctx: PythonSetupContext, plan: project::plan::PythonSetupPlan) -> Result<()>;
 }

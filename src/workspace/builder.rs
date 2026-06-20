@@ -1,7 +1,7 @@
-use anyhow::{Context, Ok, Result};
+use anyhow::{Context, Result};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
-use std::fs::{create_dir_all, read, read_to_string, write};
+use std::fs::read_to_string;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::OnceLock;
@@ -10,17 +10,9 @@ use walkdir::WalkDir;
 use crate::config::PathReplacementConfig;
 use crate::rendering::new_template_environment;
 use crate::workspace::TemplateContext;
+use crate::workspace::content::FileContent;
 use crate::workspace::path_rewrite::{PathRewritePlan, SourcePathEntry, SourcePathKind};
-
-pub(crate) enum FileContent {
-    BinaryLazy {
-        path: PathBuf,
-        cache: OnceLock<Rc<[u8]>>,
-    },
-    Binary(Rc<[u8]>),
-    Template(Rc<str>),
-    None,
-}
+use crate::workspace::rendered::RenderedWorkspace;
 
 fn deduplicate_dirmap(map: &mut HashMap<PathBuf, FileContent>) {
     let all_paths: Vec<PathBuf> = map.keys().cloned().collect();
@@ -40,7 +32,7 @@ pub(crate) struct WorkspaceBuilder {
 }
 
 impl WorkspaceBuilder {
-    pub(super) fn from_source(source_path: &Path) -> Result<Self> {
+    pub(crate) fn from_source(source_path: &Path) -> Result<Self> {
         let mut raw_map = HashMap::new();
         for entry in WalkDir::new(source_path)
             .into_iter()
@@ -78,7 +70,7 @@ impl WorkspaceBuilder {
         Ok(Self { content: raw_map })
     }
 
-    pub(super) fn rewrite_paths(
+    pub(crate) fn rewrite_paths(
         self,
         context: &TemplateContext,
         path_replacements: &BTreeMap<String, PathReplacementConfig>,
@@ -113,7 +105,7 @@ impl WorkspaceBuilder {
         })
     }
 
-    pub(super) fn render_templates(self, context: &impl Serialize) -> Result<Self> {
+    pub(crate) fn render_templates(self, context: &impl Serialize) -> Result<Self> {
         let mut rendered_map = HashMap::new();
         let env = new_template_environment();
         for (path, content) in self.content {
@@ -147,46 +139,7 @@ impl WorkspaceBuilder {
         })
     }
 
-    pub(super) fn flush_to_disk(self, target: &Path) -> Result<()> {
-        for (path, content) in self.content {
-            let full_path = target.join(&path);
-            match content {
-                FileContent::BinaryLazy {
-                    path: source_path,
-                    cache,
-                } => {
-                    if cache.get().is_none() {
-                        let bytes =
-                            read(&source_path).map(Rc::<[u8]>::from).with_context(|| {
-                                format!("Failed to read binary file {}", source_path.display())
-                            })?;
-                        let _ = cache.set(bytes);
-                    }
-                    let bytes = cache
-                        .get()
-                        .context("Binary cache was not initialized after read")?;
-                    if let Some(parent) = full_path.parent() {
-                        create_dir_all(parent)?;
-                    }
-                    write(full_path, bytes.as_ref())?;
-                }
-                FileContent::Binary(bytes) => {
-                    if let Some(parent) = full_path.parent() {
-                        create_dir_all(parent)?;
-                    }
-                    write(full_path, bytes.as_ref())?;
-                }
-                FileContent::None => {
-                    create_dir_all(full_path)?;
-                }
-                FileContent::Template(_) => {
-                    eprintln!(
-                        "WARNING: Found unrendered template at {}. Skipping.",
-                        path.display()
-                    );
-                }
-            }
-        }
-        Ok(())
+    pub(crate) fn build(self) -> RenderedWorkspace {
+        RenderedWorkspace::new(self.content)
     }
 }

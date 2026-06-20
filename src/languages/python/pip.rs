@@ -1,5 +1,5 @@
 use super::shared::{build_python_versioned_commands, get_or_create_requirements_file};
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::Path;
 
 static PYTHON_VENV_CREATION_ARGS: [&str; 3] = ["-m", "venv", ".venv"];
@@ -17,12 +17,9 @@ fn get_pip_install_args() -> Vec<String> {
 use crate::{
     config::PythonInstallConfig,
     languages::python::{
-        PythonPackageManagerSetup, PythonProjectScope, PythonSetupContext,
-        install::{
-            editable_install_target, ensure_no_groups_for_editable_install,
-            ensure_no_install_options_for_requirements_file,
-        },
-        shared::ensure_readme,
+        PythonPackageManager, PythonPackageManagerSetup, PythonSetupContext,
+        project::plan::{PythonInstaller, PythonSetupMode, PythonSetupPlan},
+        shared::{editable_install_target, ensure_readme},
     },
     util::execute_command,
 };
@@ -30,21 +27,26 @@ use crate::{
 pub(crate) struct PipPackageManagerSetup;
 
 impl PythonPackageManagerSetup for PipPackageManagerSetup {
-    fn setup(&self, ctx: PythonSetupContext) -> Result<()> {
+    fn manager(&self) -> PythonPackageManager {
+        PythonPackageManager::Pip
+    }
+
+    fn setup(&self, ctx: PythonSetupContext, plan: PythonSetupPlan) -> Result<()> {
         if ctx.config.python.pip_config.version_fallback {
             Self::setup_venv_with_fallback(&ctx.config.python.language_version, &ctx.target_path)?;
         } else {
             Self::setup_venv(&ctx.config.python.language_version, &ctx.target_path)?;
         }
 
-        match ctx.project_scope {
-            PythonProjectScope::Install => {
-                Self::install_project(&ctx.target_path, &ctx.config.python.install)
-            }
-            PythonProjectScope::Requirements => {
-                Self::install_requirements(&ctx.target_path, &ctx.config.python.install)
-            }
-            PythonProjectScope::Base => Ok::<(), anyhow::Error>(()),
+        match plan.mode {
+            PythonSetupMode::EditableInstall {
+                installer: PythonInstaller::Pip,
+            } => Self::install_project(&ctx.target_path, &ctx.config.python.install),
+            PythonSetupMode::RequirementsFile {
+                installer: PythonInstaller::Pip,
+            } => Self::install_requirements(&ctx.target_path, &ctx.config.python.install),
+            PythonSetupMode::Base => Ok::<(), anyhow::Error>(()),
+            _ => bail!("pip setup received a non-pip setup plan: {:?}", plan.mode),
         }?;
         Ok(())
     }
@@ -93,7 +95,6 @@ impl PipPackageManagerSetup {
         let mut pip_install_args = get_pip_install_args();
         let editable_target = editable_install_target(&install.extras);
 
-        ensure_no_groups_for_editable_install(install)?;
         pip_install_args.extend(["-e".to_string(), editable_target]);
         ensure_readme(target)?;
         execute_command(
@@ -104,9 +105,8 @@ impl PipPackageManagerSetup {
         Ok(())
     }
 
-    fn install_requirements(target: &Path, install: &PythonInstallConfig) -> Result<()> {
+    fn install_requirements(target: &Path, _install: &PythonInstallConfig) -> Result<()> {
         let python_pip_exec = target.join(RELATIVE_VENV_PATH);
-        ensure_no_install_options_for_requirements_file(install)?;
         let requirements_file = get_or_create_requirements_file(target)?
             .to_string_lossy()
             .to_string();

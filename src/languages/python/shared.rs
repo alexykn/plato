@@ -1,10 +1,9 @@
 use crate::config::PythonPackageManagerConfig;
 use crate::languages::LanguageSetupContext;
+use crate::languages::python::project::metadata::{RawPyProject, parse_pyproject};
 use crate::languages::python::{PythonPackageManager, PythonProjectScope};
 use crate::util::is_installed;
 use anyhow::{Context, Ok, Result, bail};
-use serde::Deserialize;
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -13,33 +12,6 @@ pub(super) struct PythonVersionedCommands {
     pub(super) requested: String,
     pub(super) major: String,
     pub(super) unknown: String,
-}
-
-#[derive(Deserialize, Debug)]
-pub(crate) struct PyProject {
-    project: Option<ProjectTable>,
-    // The new standard (PEP 735)
-    #[serde(rename = "dependency-groups")]
-    dependency_groups: Option<HashMap<String, Vec<String>>>,
-    // The specific tool tables
-    tool: Option<ToolTable>,
-}
-
-#[derive(Deserialize, Debug)]
-struct ProjectTable {
-    dependencies: Option<Vec<String>>,
-}
-
-#[derive(Deserialize, Debug)]
-struct ToolTable {
-    // Handling the legacy uv fields
-    uv: Option<UvTable>,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "kebab-case")]
-struct UvTable {
-    dev_dependencies: Option<Vec<String>>,
 }
 
 pub(crate) fn get_python_project_scope(target: &Path, project_name: &str) -> PythonProjectScope {
@@ -106,29 +78,7 @@ fn resolve_python_package_manager(version: &str, pip_fallback: bool) -> PythonPa
     PythonPackageManager::None
 }
 
-pub(crate) fn parse_pyproject(pyproject_path: &Path) -> Result<PyProject> {
-    let content = fs::read_to_string(pyproject_path).context(format!(
-        "Could not pyproject toml at {}",
-        pyproject_path.display()
-    ))?;
-    let pyrproject: PyProject = toml::from_str(&content)?;
-    Ok(pyrproject)
-}
-
-pub(crate) fn has_pyproject_project_table(target: &Path) -> Result<bool> {
-    let pyproject_path = target.join("pyproject.toml");
-    if !pyproject_path.exists() {
-        return Ok(false);
-    }
-
-    let pyproject = parse_pyproject(&pyproject_path).context(format!(
-        "Unable to parse pyproject.toml at {}",
-        pyproject_path.display()
-    ))?;
-    Ok(pyproject.project.is_some())
-}
-
-pub(crate) fn requirements_from_pyproject(pyproject: PyProject) -> Result<Vec<String>> {
+pub(crate) fn requirements_from_pyproject(pyproject: RawPyProject) -> Result<Vec<String>> {
     let mut requirements: Vec<String> = Vec::new();
     if let Some(project_deps) = pyproject.project.and_then(|x| x.dependencies) {
         requirements.extend(project_deps);
@@ -146,6 +96,14 @@ pub(crate) fn requirements_from_pyproject(pyproject: PyProject) -> Result<Vec<St
         requirements.extend(uv_deps);
     }
     Ok(requirements)
+}
+
+pub(crate) fn editable_install_target(extras: &[String]) -> String {
+    if extras.is_empty() {
+        return ".".to_string();
+    }
+
+    format!(".[{}]", extras.join(","))
 }
 
 fn find_file_in_target(target: &Path, file: &str) -> Option<PathBuf> {
@@ -237,12 +195,6 @@ mod test {
     dev = []
     ";
 
-    static BUILD_SYSTEM_ONLY_PYPROJECT_TEST_CONTENT: &str = r#"
-    [build-system]
-    requires = ["setuptools", "wheel"]
-    build-backend = "setuptools.build_meta"
-    "#;
-
     fn make_temp_dir(dir_name: &str) -> PathBuf {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -279,29 +231,12 @@ mod test {
     }
 
     #[test]
-    fn detects_pyproject_project_table() {
-        let target = make_temp_dir("has_project_table");
-        make_file("pyproject.toml", &target, PYPROJECT_TEST_CONTENT);
-
-        assert!(has_pyproject_project_table(&target).unwrap());
-    }
-
-    #[test]
-    fn treats_build_system_only_pyproject_as_legacy() {
-        let target = make_temp_dir("build_system_only");
-        make_file(
-            "pyproject.toml",
-            &target,
-            BUILD_SYSTEM_ONLY_PYPROJECT_TEST_CONTENT,
+    fn editable_install_target_includes_extras_when_configured() {
+        assert_eq!(editable_install_target(&[]), ".");
+        assert_eq!(editable_install_target(&["cli".to_string()]), ".[cli]");
+        assert_eq!(
+            editable_install_target(&["cli".to_string(), "postgres".to_string()]),
+            ".[cli,postgres]"
         );
-
-        assert!(!has_pyproject_project_table(&target).unwrap());
-    }
-
-    #[test]
-    fn treats_missing_pyproject_as_legacy() {
-        let target = make_temp_dir("missing_pyproject");
-
-        assert!(!has_pyproject_project_table(&target).unwrap());
     }
 }
