@@ -1,13 +1,15 @@
 use anyhow::Result;
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fs::create_dir_all;
 use std::path::PathBuf;
 
-use crate::{ExecutionContext, config::TemplateLanguage};
+use crate::{ExecutionContext, config::PathReplacementConfig, config::TemplateLanguage};
 
 use super::workspace::setup::WorkspaceBuilder;
 
+pub(crate) mod path_rewrite;
 pub(crate) mod setup;
 
 #[derive(Serialize, Debug, Clone)]
@@ -19,6 +21,7 @@ pub(crate) struct TemplateContext {
 #[derive(Debug, Clone)]
 pub(crate) struct WorkspaceSetupContext {
     pub(crate) template_context: TemplateContext,
+    pub(crate) path_replacements: BTreeMap<String, PathReplacementConfig>,
     pub(crate) source_path: PathBuf,
     pub(crate) target_path: PathBuf,
 }
@@ -28,6 +31,7 @@ impl From<&ExecutionContext> for WorkspaceSetupContext {
         let template_context = build_template_context(exec_ctx);
         Self {
             template_context,
+            path_replacements: exec_ctx.config.path.replace.clone(),
             source_path: exec_ctx.source_path.clone(),
             target_path: exec_ctx.target_path.clone(),
         }
@@ -70,7 +74,7 @@ impl WorkspaceSetup for DefaultWorkspaceSetup {
     fn setup(&self, ctx: WorkspaceSetupContext) -> Result<()> {
         create_dir_all(&ctx.target_path)?;
         WorkspaceBuilder::from_source(&ctx.source_path)?
-            .render_paths(&ctx.template_context)?
+            .rewrite_paths(&ctx.template_context, &ctx.path_replacements)?
             .render_templates(&ctx.template_context)?
             .flush_to_disk(&ctx.target_path)?;
         Ok(())

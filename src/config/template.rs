@@ -1,8 +1,8 @@
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::read_to_string;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -70,6 +70,8 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) template: TemplateConfig,
     #[serde(default)]
+    pub(crate) path: PathConfig,
+    #[serde(default)]
     pub(crate) python: PythonConfig,
     #[serde(default)]
     pub(crate) rust: RustConfig,
@@ -87,6 +89,18 @@ pub(crate) struct PlatoConfig {
 pub(crate) struct TemplateConfig {
     #[serde(default)]
     pub(crate) context: HashMap<String, String>,
+}
+
+#[derive(Deserialize, Debug, Default, Clone)]
+pub(crate) struct PathConfig {
+    #[serde(default)]
+    pub(crate) replace: BTreeMap<String, PathReplacementConfig>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub(crate) struct PathReplacementConfig {
+    pub(crate) path: PathBuf,
+    pub(crate) replace: String,
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]

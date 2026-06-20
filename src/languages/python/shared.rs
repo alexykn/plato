@@ -115,6 +115,19 @@ pub(crate) fn parse_pyproject(pyproject_path: &Path) -> Result<PyProject> {
     Ok(pyrproject)
 }
 
+pub(crate) fn has_pyproject_project_table(target: &Path) -> Result<bool> {
+    let pyproject_path = target.join("pyproject.toml");
+    if !pyproject_path.exists() {
+        return Ok(false);
+    }
+
+    let pyproject = parse_pyproject(&pyproject_path).context(format!(
+        "Unable to parse pyproject.toml at {}",
+        pyproject_path.display()
+    ))?;
+    Ok(pyproject.project.is_some())
+}
+
 pub(crate) fn requirements_from_pyproject(pyproject: PyProject) -> Result<Vec<String>> {
     let mut requirements: Vec<String> = Vec::new();
     if let Some(project_deps) = pyproject.project.and_then(|x| x.dependencies) {
@@ -236,6 +249,12 @@ mod test {
     dev = []
     ";
 
+    static BUILD_SYSTEM_ONLY_PYPROJECT_TEST_CONTENT: &str = r#"
+    [build-system]
+    requires = ["setuptools", "wheel"]
+    build-backend = "setuptools.build_meta"
+    "#;
+
     fn make_temp_dir(dir_name: &str) -> PathBuf {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -269,5 +288,32 @@ mod test {
         let result = get_or_create_requirements_file(&target).unwrap();
 
         assert_eq!(result, target.join(".plato/requirements.txt"));
+    }
+
+    #[test]
+    fn detects_pyproject_project_table() {
+        let target = make_temp_dir("has_project_table");
+        make_file("pyproject.toml", &target, PYPROJECT_TEST_CONTENT);
+
+        assert!(has_pyproject_project_table(&target).unwrap());
+    }
+
+    #[test]
+    fn treats_build_system_only_pyproject_as_legacy() {
+        let target = make_temp_dir("build_system_only");
+        make_file(
+            "pyproject.toml",
+            &target,
+            BUILD_SYSTEM_ONLY_PYPROJECT_TEST_CONTENT,
+        );
+
+        assert!(!has_pyproject_project_table(&target).unwrap());
+    }
+
+    #[test]
+    fn treats_missing_pyproject_as_legacy() {
+        let target = make_temp_dir("missing_pyproject");
+
+        assert!(!has_pyproject_project_table(&target).unwrap());
     }
 }

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::config::{GlobalConfig, TemplateEntry, parse_global_config_file};
+use crate::config::{Config, GlobalConfig, TemplateEntry, parse_global_config_file};
 
 #[test]
 fn deserializes_global_template_entries() {
@@ -54,4 +54,31 @@ fn malformed_global_config_fails() {
             .contains("Invalid format in global config")
     );
     std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn deserializes_template_path_replacements() {
+    let raw = r#"
+[template.context]
+package_name = "py3-requests"
+package_deps = "deps-runtime"
+
+[path.replace]
+source = { path = "src/py3-something", replace = "src/{{ package_name | regex_replace('^py3-', '') }}" }
+deps = { path = "deps/funny", replace = "deps/{{ package_deps | regex_replace('^deps', 'stuff') }}" }
+"#;
+    let config: Config = toml::from_str(raw).unwrap();
+
+    assert_eq!(
+        config.path.replace["source"].path,
+        PathBuf::from("src/py3-something")
+    );
+    assert_eq!(
+        config.path.replace["source"].replace,
+        "src/{{ package_name | regex_replace('^py3-', '') }}"
+    );
+    assert_eq!(
+        config.path.replace["deps"].path,
+        PathBuf::from("deps/funny")
+    );
 }

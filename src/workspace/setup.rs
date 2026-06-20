@@ -1,14 +1,16 @@
 use anyhow::{Context, Ok, Result};
-use minijinja::Environment;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::{create_dir_all, read, read_to_string, write};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::OnceLock;
 use walkdir::WalkDir;
 
+use crate::config::PathReplacementConfig;
+use crate::rendering::new_template_environment;
 use crate::workspace::TemplateContext;
+use crate::workspace::path_rewrite::{PathRewritePlan, SourcePathEntry, SourcePathKind};
 
 pub(crate) enum FileContent {
     BinaryLazy {
@@ -76,19 +78,31 @@ impl WorkspaceBuilder {
         Ok(Self { content: raw_map })
     }
 
-    pub(super) fn render_paths(self, context: &TemplateContext) -> Result<Self> {
+    pub(super) fn rewrite_paths(
+        self,
+        context: &TemplateContext,
+        path_replacements: &BTreeMap<String, PathReplacementConfig>,
+    ) -> Result<Self> {
+        let source_entries = self
+            .content
+            .iter()
+            .map(|(path, content)| SourcePathEntry {
+                path: path.clone(),
+                kind: if matches!(content, FileContent::None) {
+                    SourcePathKind::Directory
+                } else {
+                    SourcePathKind::File
+                },
+            })
+            .collect::<Vec<_>>();
+        let rewrite_plan =
+            PathRewritePlan::from_config(path_replacements, context, &source_entries)?;
         let mut target_map = HashMap::new();
         for (rel_path, content) in self.content {
-            let mut path_str = rel_path.to_string_lossy().into_owned();
-            for (keyword, replacement) in &context.context {
-                let pattern = format!("#{keyword}#");
-                path_str = path_str.replace(&pattern, replacement);
-            }
-
-            let new_path = PathBuf::from(path_str);
+            let new_path = rewrite_plan.rewrite(&rel_path);
             if target_map.insert(new_path.clone(), content).is_some() {
                 return Err(anyhow::anyhow!(
-                    "Duplicate path after rendering: {}",
+                    "Duplicate path after rewrite: {}",
                     new_path.display()
                 ));
             }
@@ -101,7 +115,7 @@ impl WorkspaceBuilder {
 
     pub(super) fn render_templates(self, context: &impl Serialize) -> Result<Self> {
         let mut rendered_map = HashMap::new();
-        let env = Environment::new();
+        let env = new_template_environment();
         for (path, content) in self.content {
             match content {
                 FileContent::Template(raw_text) => {

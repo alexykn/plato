@@ -140,6 +140,11 @@ setup_git = false
 [template.context]
 # arbitrary key-value pairs for path and file content templates
 
+[path.replace]
+# Named path rewrite rules. `path` must exactly match a relative path in the
+# template source tree. `replace` is rendered with MiniJinja before writing.
+# package = { path = "src/package-template", replace = "src/{{ project_name | regex_replace('-', '_') }}" }
+
 [python]
 language_version = "3"
 package_manager = "auto"     # auto | uv | pip
@@ -157,11 +162,23 @@ cargo_init = false
 
 ## Rendering Rules
 
-Path placeholders use `#key#` syntax:
+Template source paths should stay regular, navigable filesystem paths. When a
+path needs to change in the generated project, define a named rewrite rule in
+`plato.toml`:
 
-```text
-src/#project_name#/main.py.j2
+```toml
+[template.context]
+package_name = "py3-requests"
+
+[path.replace]
+source = { path = "src/py3-something", replace = "src/{{ package_name | regex_replace('^py3-', '') }}" }
 ```
+
+The `path` value must exactly match a relative file or directory path in the
+template root. Directory rewrites apply to the whole subtree, so
+`src/py3-something/__init__.py.j2` becomes `src/requests/__init__.py` in the
+example above. Replacements are rendered with the same MiniJinja context and
+filters as file contents.
 
 File contents use MiniJinja:
 
@@ -170,6 +187,24 @@ File contents use MiniJinja:
 {{ language_version }}
 {{ toolchain }}
 ```
+
+Plato also adds Ansible-style regex filters to MiniJinja templates:
+
+```jinja2
+{{ value | regex_replace('^py3-', '') }}
+{{ value | regex_search('\\d+') }}
+{{ value | regex_findall('\\d+') }}
+{{ value | regex_escape }}
+```
+
+Capture replacements use Ansible/Python-style syntax:
+
+```jinja2
+{{ 'py3-requests' | regex_replace('^py3-(.*)$', '\\1') }}
+{{ 'pkg:requests' | regex_replace('^(?P<kind>[^:]+):(?P<name>.+)$', '\\g<name>') }}
+```
+
+Regex filters are available in `.j2` and `.mj` file contents and in `[path.replace]` replacement strings. Plato uses Rust regex syntax, so common regexes work, but Python `re` features such as look-around and backreferences inside patterns are not supported.
 
 Files ending in `.j2` or `.mj` are rendered and written without that extension. Non-template files are copied as raw bytes. `plato.toml` is never copied.
 
