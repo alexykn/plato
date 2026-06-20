@@ -7,6 +7,7 @@ pub(crate) mod fs;
 pub(crate) mod git;
 pub(crate) mod guard;
 pub(crate) mod languages;
+pub(crate) mod names;
 pub(crate) mod rendering;
 pub(crate) mod templates;
 pub(crate) mod util;

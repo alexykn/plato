@@ -163,7 +163,7 @@ initial_message = "Initial commit"
 [path.replace]
 # Named path rewrite rules. `path` must exactly match a relative path in the
 # template source tree. `replace` is rendered with MiniJinja before writing.
-# package = { path = "src/package-template", replace = "src/{{ project_name | regex_replace('-', '_') }}" }
+# package = { path = "src/package-template", replace = "src/{{ project_snake }}" }
 
 [python]
 language_version = "3"
@@ -182,21 +182,60 @@ cargo_init = false
 
 ## Rendering Rules
 
+Plato provides derived project-name values to path and file content templates.
+These values are context only: Plato never renames paths or rewrites file
+contents unless the template explicitly references them in `[path.replace]` or
+in a `.j2`/`.mj` file.
+
+Given:
+
+```bash
+plato init py my-cool-app
+```
+
+all templates receive:
+
+```jinja2
+{{ project_name }}   {# my-cool-app, exactly as passed on the CLI #}
+{{ project_kebab }}  {# my-cool-app #}
+{{ project_snake }}  {# my_cool_app #}
+{{ project_pascal }} {# MyCoolApp #}
+```
+
+Python templates also receive:
+
+```jinja2
+{{ python_distribution_name }} {# my-cool-app #}
+{{ python_package_name }}      {# my_cool_app #}
+{{ python_cli_name }}          {# my-cool-app #}
+{{ language_version }}
+```
+
+Rust templates also receive:
+
+```jinja2
+{{ rust_package_name }} {# my-cool-app #}
+{{ rust_crate_name }}   {# my_cool_app #}
+{{ rust_binary_name }}  {# my-cool-app #}
+{{ toolchain }}
+```
+
+Values in `[template.context]` override built-in context values with the same
+key.
+
 Template source paths should stay regular, navigable filesystem paths. When a
 path needs to change in the generated project, define a named rewrite rule in
 `plato.toml`:
 
 ```toml
-[template.context]
-package_name = "py3-requests"
-
 [path.replace]
-source = { path = "src/py3-something", replace = "src/{{ package_name | regex_replace('^py3-', '') }}" }
+source = { path = "src/package-template", replace = "src/{{ python_package_name }}" }
 ```
 
 The `path` value must exactly match a relative file or directory path in the
 template root. Directory rewrites apply to the whole subtree, so
-`src/py3-something/__init__.py.j2` becomes `src/requests/__init__.py` in the
+`src/package-template/__init__.py.j2` becomes
+`src/my_cool_app/__init__.py` when the project name is `my-cool-app` in the
 example above. Replacements are rendered with the same MiniJinja context and
 filters as file contents.
 
@@ -204,6 +243,8 @@ File contents use MiniJinja:
 
 ```jinja2
 {{ project_name }}
+{{ project_snake }}
+{{ python_package_name }}
 {{ language_version }}
 {{ toolchain }}
 ```

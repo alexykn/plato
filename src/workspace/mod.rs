@@ -5,7 +5,12 @@ use std::collections::HashMap;
 use std::fs::create_dir_all;
 use std::path::PathBuf;
 
-use crate::{ExecutionContext, config::PathReplacementConfig, config::TemplateLanguage};
+use crate::{
+    ExecutionContext,
+    config::PathReplacementConfig,
+    config::TemplateLanguage,
+    names::{ProjectNameSet, PythonNameSet, RustNameSet},
+};
 
 use super::workspace::setup::WorkspaceBuilder;
 
@@ -40,15 +45,19 @@ impl From<&ExecutionContext> for WorkspaceSetupContext {
 
 fn build_template_context(exec_ctx: &ExecutionContext) -> TemplateContext {
     let mut template_context: HashMap<String, String> = HashMap::new();
-    template_context.insert("project_name".to_string(), exec_ctx.project_name.clone());
+    let project_names = ProjectNameSet::derive(&exec_ctx.project_name);
+
+    project_names.insert_context(&mut template_context);
     match &exec_ctx.config.plato.template_language {
         TemplateLanguage::Python => {
+            PythonNameSet::from_project(&project_names).insert_context(&mut template_context);
             template_context.insert(
                 "language_version".to_string(),
                 exec_ctx.config.python.language_version.clone(),
             );
         }
         TemplateLanguage::Rust => {
+            RustNameSet::from_project(&project_names).insert_context(&mut template_context);
             template_context.insert(
                 "toolchain".to_string(),
                 exec_ctx.config.rust.toolchain.clone(),
