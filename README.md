@@ -35,6 +35,15 @@ Global app configuration lives at:
 ~/.config/plato/config.toml
 ```
 
+See `config.example.toml` for a complete global configuration example.
+
+Template-local configuration lives in a template directory as `plato.toml`.
+Complete examples are available in the repository root:
+
+- `plato.base.example.toml`
+- `plato.python.example.toml`
+- `plato.rust.example.toml`
+
 Template names are explicit. Directory names do not define templates.
 
 ```toml

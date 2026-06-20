@@ -1,0 +1,93 @@
+# ==============================================================================
+# Plato Python Template Configuration Example (plato.toml)
+#
+# Save this file as plato.toml in a Python template directory. This example
+# contains every Python-specific template setting plus the shared rendering,
+# path rewrite, and Git settings.
+# ==============================================================================
+
+[plato]
+# Python templates receive generic project_* values and Python-specific derived
+# values such as python_distribution_name, python_package_name, python_cli_name,
+# and python_package_dir.
+#
+# Supported options: "python" or "py"
+template_language = "python"
+
+# If true, Plato runs git init after rendering and applies the [git.*] settings.
+setup_git = false
+
+
+# ------------------------------------------------------------------------------
+# Git Initialization
+# ------------------------------------------------------------------------------
+[git]
+# If unset, Plato runs plain `git init` and Git uses the user's global defaults.
+initial_branch = "main"
+
+[git.user]
+# Local repository identity written with `git config --local` when setup_git=true.
+name = "Jane Doe"
+email = "jane@example.com"
+signing_key = "ABC123DEF456"
+
+[git.commit]
+# Configure local commit signing and optionally create the first commit.
+gpgsign = true
+initial = false
+initial_message = "Initial commit"
+
+[git.core]
+# Local repository core settings. Remove keys you want Git to inherit globally.
+hooks_path = ".githooks"
+autocrlf = "input"        # true | false | input
+eol = "lf"                # lf | crlf | native
+filemode = true
+
+
+# ------------------------------------------------------------------------------
+# Template Rendering Context
+# ------------------------------------------------------------------------------
+[template.context]
+# Arbitrary string key-value pairs available to path and file content templates.
+description = "Generated with Plato"
+license = "MIT"
+
+
+# ------------------------------------------------------------------------------
+# Path Rewrites
+# ------------------------------------------------------------------------------
+[path.replace]
+# Named path rewrite rules. `path` must exactly match a relative path in the
+# template source tree. `replace` is rendered with MiniJinja before writing.
+package = { path = "src/package-template", replace = "src/{{ python_package_name }}" }
+
+
+# ------------------------------------------------------------------------------
+# Python Setup
+# ------------------------------------------------------------------------------
+[python]
+# Python version used for venv creation. uv receives this as `uv venv --python`;
+# pip setup uses the matching python executable, e.g. python3.12.
+language_version = "3.12"
+
+# Supported options: auto | uv | pip
+package_manager = "auto"
+
+# Supported options: auto | base | requirements | install
+# - base: create only the environment
+# - requirements: install from requirements.txt or generated requirements
+# - install: install/sync the rendered project
+project_scope = "auto"
+
+[python.install]
+# Explicit setup-time install selectors. Plato does not create or infer these.
+#
+# groups are supported only by uv sync with modern pyproject dependency groups.
+# extras are supported by uv sync and editable installs.
+groups = ["dev"]
+extras = ["cli"]
+
+[python.pip]
+# If true, pip setup falls back from pythonX.Y to pythonX to python.
+version_fallback = false
