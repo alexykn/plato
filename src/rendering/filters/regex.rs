@@ -64,7 +64,7 @@ fn regex_search(value: &str, pattern: &str, args: &Rest<Value>) -> Result<Value,
 
     let regex = compile_regex(pattern, flags)?;
     let Some(captures) = regex.captures(value) else {
-        return Ok(Value::UNDEFINED);
+        return Ok(Value::from(""));
     };
 
     if selectors.is_empty() {

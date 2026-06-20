@@ -14,7 +14,6 @@ use crate::languages::rust::{
 use crate::languages::python::{
     PythonPackageManager, PythonPackageManagerSetup, PythonSetupContext, uv::UvPackageManagerSetup,
 };
-use crate::validation::files::FilesystemProjectFiles;
 
 pub(crate) mod python;
 pub(crate) mod rust;
@@ -86,8 +85,8 @@ where
     P: PythonPackageManagerSetup,
 {
     let python_ctx = PythonSetupContext::try_from_language(language_ctx, package_manager.manager());
-    let files = FilesystemProjectFiles::new(python_ctx.target_path.clone());
-    let metadata = python::project::metadata::load_python_project_metadata(&files)?;
+    let metadata =
+        python::project::metadata::load_python_project_metadata(&python_ctx.target_path)?;
     let plan = python::project::plan::resolve_python_setup_plan(&python_ctx, &metadata)?;
     package_manager.setup(python_ctx, plan)?;
     Ok(())

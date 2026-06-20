@@ -68,7 +68,33 @@ pub(crate) fn resolve_python_setup_plan(
         }
     };
 
+    ensure_install_selectors_supported(ctx, mode)?;
+
     Ok(SetupPlan::new(mode))
+}
+
+fn ensure_install_selectors_supported(
+    ctx: &PythonSetupContext,
+    mode: PythonSetupMode,
+) -> Result<()> {
+    let install = &ctx.config.python.install;
+    if install.is_empty() {
+        return Ok(());
+    }
+
+    match mode {
+        PythonSetupMode::UvSync { .. } => Ok(()),
+        PythonSetupMode::EditableInstall { .. } if install.groups.is_empty() => Ok(()),
+        PythonSetupMode::EditableInstall { .. } => bail!(
+            "python.install.groups cannot be applied to editable install setup. Use a pyproject.toml [project] table with [dependency-groups] and uv sync, or remove python.install.groups."
+        ),
+        PythonSetupMode::RequirementsFile { .. } => bail!(
+            "python.install options cannot be applied to requirements-file setup. Remove python.install.groups/extras or use an install setup path that supports them."
+        ),
+        PythonSetupMode::Base => bail!(
+            "python.install options require a Python setup scope that installs dependencies. Set [python].project_scope to \"install\", \"requirements\", or \"auto\" resolving to one of those scopes, or remove python.install."
+        ),
+    }
 }
 
 #[cfg(test)]
@@ -78,7 +104,7 @@ mod tests {
         config::Config,
         languages::python::project::metadata::{PyProjectState, PyProjectTomlMetadata},
     };
-    use std::{collections::BTreeSet, path::PathBuf};
+    use std::path::PathBuf;
 
     fn ctx(
         package_manager: PythonPackageManager,
@@ -92,6 +118,18 @@ mod tests {
         }
     }
 
+    fn ctx_with_install(
+        package_manager: PythonPackageManager,
+        project_scope: PythonProjectScope,
+        groups: &[&str],
+        extras: &[&str],
+    ) -> PythonSetupContext {
+        let mut ctx = ctx(package_manager, project_scope);
+        ctx.config.python.install.groups = groups.iter().map(ToString::to_string).collect();
+        ctx.config.python.install.extras = extras.iter().map(ToString::to_string).collect();
+        ctx
+    }
+
     fn metadata(has_project_table: bool) -> PythonProjectMetadata {
         if !has_project_table {
             return PythonProjectMetadata {
@@ -101,11 +139,7 @@ mod tests {
 
         PythonProjectMetadata {
             pyproject: PyProjectState::Present(PyProjectTomlMetadata {
-                path: PathBuf::from("pyproject.toml"),
                 has_project_table: true,
-                dependency_groups: BTreeSet::new(),
-                optional_dependencies: BTreeSet::new(),
-                readme_path: None,
             }),
         }
     }
@@ -205,5 +239,45 @@ mod tests {
         .unwrap();
 
         assert_eq!(plan.mode, PythonSetupMode::Base);
+    }
+
+    #[test]
+    fn rejects_groups_for_editable_install() {
+        let error = resolve_python_setup_plan(
+            &ctx_with_install(
+                PythonPackageManager::Pip,
+                PythonProjectScope::Install,
+                &["dev"],
+                &[],
+            ),
+            &metadata(true),
+        )
+        .unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("python.install.groups cannot be applied")
+        );
+    }
+
+    #[test]
+    fn rejects_install_options_for_requirements_file() {
+        let error = resolve_python_setup_plan(
+            &ctx_with_install(
+                PythonPackageManager::Pip,
+                PythonProjectScope::Requirements,
+                &[],
+                &["cli"],
+            ),
+            &metadata(false),
+        )
+        .unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("python.install options cannot be applied")
+        );
     }
 }

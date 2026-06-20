@@ -11,7 +11,6 @@ pub(crate) mod names;
 pub(crate) mod rendering;
 pub(crate) mod templates;
 pub(crate) mod util;
-pub(crate) mod validation;
 pub(crate) mod workspace;
 
 use crate::config::Config;
@@ -24,7 +23,6 @@ use crate::guard::ProjectGuard;
 use crate::languages::{LanguageSetup, LanguageSetupContext, PythonSetup, RustSetup};
 use crate::templates::{TemplateRequest, TemplateResolver};
 use crate::util::{bail_if_target_path_exists, open_config_file};
-use crate::validation::{ValidationProjectContext, validate_rendered_project};
 use crate::workspace::{WorkspaceRenderContext, render_workspace};
 
 #[derive(Clone, Debug)]
@@ -155,8 +153,6 @@ pub fn run(options: RunOptions) -> Result<()> {
     bail_if_target_path_exists(&exec_ctx.target_path, exec_ctx.force)?;
 
     let rendered = render_workspace(&WorkspaceRenderContext::from(&exec_ctx))?;
-    let report = validate_rendered_project(&ValidationProjectContext::from(&exec_ctx), &rendered)?;
-    report.into_result()?;
 
     let mut guard = ProjectGuard::new(exec_ctx.target_path.clone());
     rendered.flush_to_disk(&exec_ctx.target_path)?;
@@ -175,7 +171,7 @@ pub fn run(options: RunOptions) -> Result<()> {
 /// Validate a template without writing a project or running setup commands.
 ///
 /// # Errors
-/// Returns an error if source resolution, rendering, or validation fails.
+/// Returns an error if source resolution or rendering fails.
 pub fn validate(options: ValidateOptions) -> Result<()> {
     let prepared = prepare_template_context(
         options.source,
@@ -184,12 +180,9 @@ pub fn validate(options: ValidateOptions) -> Result<()> {
         options.subpath,
     )?;
     let render_ctx = WorkspaceRenderContext::from(&prepared);
-    let rendered = render_workspace(&render_ctx)?;
-    let report = validate_rendered_project(&ValidationProjectContext::from(&prepared), &rendered)?;
-    if !report.has_errors() {
-        report.print();
-    }
-    report.into_result()
+    render_workspace(&render_ctx)?;
+    println!("Validation passed.");
+    Ok(())
 }
 
 fn git_setup_options(config: &Config) -> GitSetupOptions<'_> {
@@ -226,24 +219,6 @@ where
     let language_ctx = LanguageSetupContext::from(exec_ctx);
     language_setup.setup(language_ctx)?;
     Ok(())
-}
-
-impl From<&ExecutionContext> for ValidationProjectContext {
-    fn from(ctx: &ExecutionContext) -> Self {
-        Self {
-            project_name: ctx.project_name.clone(),
-            config: ctx.config.clone(),
-        }
-    }
-}
-
-impl From<&PreparedTemplateContext> for ValidationProjectContext {
-    fn from(ctx: &PreparedTemplateContext) -> Self {
-        Self {
-            project_name: ctx.project_name.clone(),
-            config: ctx.config.clone(),
-        }
-    }
 }
 
 impl From<&PreparedTemplateContext> for WorkspaceRenderContext {

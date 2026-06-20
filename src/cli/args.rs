@@ -62,7 +62,7 @@ pub(crate) struct ValArgs {
     /// Configured template name, or Git spec when --git is passed
     pub(crate) template_name: Option<String>,
 
-    /// The name used for rendering validation context
+    /// Optional name used for rendering validation context
     pub(crate) project_name: Option<String>,
 
     /// Provide an explicit path to load the template from

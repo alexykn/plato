@@ -5,19 +5,15 @@ use clap::Parser;
 use plato::{RunOptions, ValidateOptions};
 
 use self::args::{Cli, Commands};
-use self::mapping::map_template_source_args;
+use self::mapping::{map_init_source_args, map_validate_source_args};
 
 pub(crate) fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
         Commands::Init(args) => {
-            let (source, project_name) = map_template_source_args(
-                args.template_name,
-                args.project_name,
-                args.path,
-                args.git,
-            )?;
+            let (source, project_name) =
+                map_init_source_args(args.template_name, args.project_name, args.path, args.git)?;
 
             plato::run(RunOptions {
                 source,
@@ -28,7 +24,7 @@ pub(crate) fn run() -> anyhow::Result<()> {
             })
         }
         Commands::Val(args) => {
-            let (source, project_name) = map_template_source_args(
+            let (source, project_name) = map_validate_source_args(
                 args.template_name,
                 args.project_name,
                 args.path,
