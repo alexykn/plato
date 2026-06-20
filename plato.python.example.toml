@@ -71,21 +71,27 @@ package = { path = "src/package-template", replace = "src/{{ python_package_name
 # pip setup uses the matching python executable, e.g. python3.12.
 language_version = "3.12"
 
-# Supported options: auto | uv | pip
-package_manager = "auto"
+# Supported options: uv | pip
+package_manager = "uv"
 
-# Supported options: auto | base | requirements | install
+# Supported options: base | requirements | install
 # - base: create only the environment
 # - requirements: install from requirements.txt or generated requirements
-# - install: install/sync the rendered project
-project_scope = "auto"
+# - install: install the rendered project
+project_scope = "install"
+
+[python.uv]
+# Supported options: editable | sync
+# - editable: use uv pip install paths, matching pip behavior
+# - sync: use uv sync / uv sync --no-install-project
+setup = "editable"
 
 [python.install]
 # Explicit setup-time install selectors. Plato does not create or infer these.
 #
-# groups are supported only by uv sync with modern pyproject dependency groups.
+# groups are supported only by uv sync.
 # extras are supported by uv sync and editable installs.
-groups = ["dev"]
+groups = []
 extras = ["cli"]
 
 [python.pip]

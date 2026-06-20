@@ -4,28 +4,6 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-#[derive(Debug, Clone)]
-pub(crate) struct PythonProjectMetadata {
-    pub(crate) pyproject: PyProjectState,
-}
-
-impl PythonProjectMetadata {
-    pub(crate) const fn has_project_table(&self) -> bool {
-        matches!(self.pyproject, PyProjectState::Present(ref pyproject) if pyproject.has_project_table)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) enum PyProjectState {
-    Missing,
-    Present(PyProjectTomlMetadata),
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct PyProjectTomlMetadata {
-    pub(crate) has_project_table: bool,
-}
-
 #[derive(Deserialize, Debug, Clone)]
 pub(crate) struct RawPyProject {
     pub(crate) project: Option<RawProjectTable>,
@@ -48,31 +26,6 @@ pub(crate) struct RawToolTable {
 #[serde(rename_all = "kebab-case")]
 pub(crate) struct RawUvTable {
     pub(crate) dev_dependencies: Option<Vec<String>>,
-}
-
-pub(crate) fn load_python_project_metadata(root: &Path) -> Result<PythonProjectMetadata> {
-    let pyproject_path = Path::new("pyproject.toml");
-    let full_pyproject_path = root.join(pyproject_path);
-    if !full_pyproject_path.exists() {
-        return Ok(PythonProjectMetadata {
-            pyproject: PyProjectState::Missing,
-        });
-    }
-
-    let content = fs::read_to_string(&full_pyproject_path).with_context(|| {
-        format!(
-            "Could not read rendered pyproject.toml at {}",
-            full_pyproject_path.display()
-        )
-    })?;
-    let raw =
-        parse_pyproject_content(&content).context("Unable to parse rendered pyproject.toml")?;
-
-    Ok(PythonProjectMetadata {
-        pyproject: PyProjectState::Present(PyProjectTomlMetadata {
-            has_project_table: raw.project.is_some(),
-        }),
-    })
 }
 
 pub(crate) fn parse_pyproject(pyproject_path: &Path) -> Result<RawPyProject> {
@@ -117,16 +70,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_pyproject_returns_missing_state() {
-        let target = make_temp_dir("metadata-missing");
-        let metadata = load_python_project_metadata(&target).unwrap();
-
-        assert!(matches!(metadata.pyproject, PyProjectState::Missing));
-        assert!(!metadata.has_project_table());
-    }
-
-    #[test]
-    fn detects_project_table() {
+    fn parses_pyproject_metadata() {
         let target = make_temp_dir("metadata-present");
         make_file(
             "pyproject.toml",
@@ -147,27 +91,10 @@ mod tests {
             "#,
         );
 
-        let metadata = load_python_project_metadata(&target).unwrap();
+        let metadata = parse_pyproject(&target.join("pyproject.toml")).unwrap();
 
-        assert!(metadata.has_project_table());
-    }
-
-    #[test]
-    fn treats_build_system_only_pyproject_as_no_project_table() {
-        let target = make_temp_dir("metadata-build-system-only");
-        make_file(
-            "pyproject.toml",
-            &target,
-            r#"
-            [build-system]
-            requires = []
-            build-backend = "backend"
-            "#,
-        );
-
-        let metadata = load_python_project_metadata(&target).unwrap();
-
-        assert!(!metadata.has_project_table());
+        assert!(metadata.project.is_some());
+        assert!(metadata.dependency_groups.unwrap().contains_key("dev"));
     }
 
     #[test]
@@ -175,12 +102,8 @@ mod tests {
         let target = make_temp_dir("metadata-invalid");
         make_file("pyproject.toml", &target, "not = [valid");
 
-        let error = load_python_project_metadata(&target).unwrap_err();
+        let error = parse_pyproject(&target.join("pyproject.toml")).unwrap_err();
 
-        assert!(
-            error
-                .to_string()
-                .contains("Unable to parse rendered pyproject.toml")
-        );
+        assert!(error.to_string().contains("Invalid pyproject.toml format"));
     }
 }

@@ -1,11 +1,12 @@
 use anyhow::{Result, bail};
 
-use crate::languages::{
-    SetupPlan,
-    python::{PythonPackageManager, PythonProjectScope, PythonSetupContext},
+use crate::{
+    config::PythonUvSetupConfig,
+    languages::{
+        SetupPlan,
+        python::{PythonPackageManager, PythonProjectScope, PythonSetupContext},
+    },
 };
-
-use super::metadata::PythonProjectMetadata;
 
 pub(crate) type PythonSetupPlan = SetupPlan<PythonSetupMode>;
 
@@ -23,54 +24,59 @@ pub(crate) enum PythonInstaller {
     Pip,
 }
 
-pub(crate) fn resolve_python_setup_plan(
-    ctx: &PythonSetupContext,
-    metadata: &PythonProjectMetadata,
-) -> Result<PythonSetupPlan> {
-    let has_project_table = metadata.has_project_table();
-    let mode = match (ctx.package_manager, ctx.project_scope) {
-        (_, PythonProjectScope::Base) => PythonSetupMode::Base,
-        (PythonPackageManager::Uv, PythonProjectScope::Install) if has_project_table => {
+pub(crate) fn resolve_python_setup_plan(ctx: &PythonSetupContext) -> Result<PythonSetupPlan> {
+    ensure_package_manager_config_supported(ctx)?;
+
+    let uv_setup = ctx.config.python.uv_setup();
+    let mode = match (ctx.package_manager, ctx.project_scope, uv_setup) {
+        (_, PythonProjectScope::Base, _) => PythonSetupMode::Base,
+        (PythonPackageManager::Uv, PythonProjectScope::Install, PythonUvSetupConfig::Sync) => {
             PythonSetupMode::UvSync {
                 install_project: true,
             }
         }
-        (PythonPackageManager::Uv, PythonProjectScope::Install) => {
+        (PythonPackageManager::Uv, PythonProjectScope::Install, PythonUvSetupConfig::Editable) => {
             PythonSetupMode::EditableInstall {
                 installer: PythonInstaller::UvPip,
             }
         }
-        (PythonPackageManager::Uv, PythonProjectScope::Requirements) if has_project_table => {
+        (PythonPackageManager::Uv, PythonProjectScope::Requirements, PythonUvSetupConfig::Sync) => {
             PythonSetupMode::UvSync {
                 install_project: false,
             }
         }
-        (PythonPackageManager::Uv, PythonProjectScope::Requirements) => {
-            PythonSetupMode::RequirementsFile {
-                installer: PythonInstaller::UvPip,
-            }
-        }
-        (PythonPackageManager::Pip, PythonProjectScope::Install) => {
+        (
+            PythonPackageManager::Uv,
+            PythonProjectScope::Requirements,
+            PythonUvSetupConfig::Editable,
+        ) => PythonSetupMode::RequirementsFile {
+            installer: PythonInstaller::UvPip,
+        },
+        (PythonPackageManager::Pip, PythonProjectScope::Install, _) => {
             PythonSetupMode::EditableInstall {
                 installer: PythonInstaller::Pip,
             }
         }
-        (PythonPackageManager::Pip, PythonProjectScope::Requirements) => {
+        (PythonPackageManager::Pip, PythonProjectScope::Requirements, _) => {
             PythonSetupMode::RequirementsFile {
                 installer: PythonInstaller::Pip,
             }
-        }
-        (PythonPackageManager::None, _) => {
-            bail!(
-                "Python package manager {:?} requested but not installed.",
-                ctx.package_manager
-            )
         }
     };
 
     ensure_install_selectors_supported(ctx, mode)?;
 
     Ok(SetupPlan::new(mode))
+}
+
+fn ensure_package_manager_config_supported(ctx: &PythonSetupContext) -> Result<()> {
+    if ctx.package_manager == PythonPackageManager::Uv || ctx.config.python.uv_config.is_none() {
+        return Ok(());
+    }
+
+    bail!(
+        "[python.uv] settings require [python].package_manager = \"uv\". Remove [python.uv] or switch package_manager to \"uv\"."
+    )
 }
 
 fn ensure_install_selectors_supported(
@@ -92,7 +98,7 @@ fn ensure_install_selectors_supported(
             "python.install options cannot be applied to requirements-file setup. Remove python.install.groups/extras or use an install setup path that supports them."
         ),
         PythonSetupMode::Base => bail!(
-            "python.install options require a Python setup scope that installs dependencies. Set [python].project_scope to \"install\", \"requirements\", or \"auto\" resolving to one of those scopes, or remove python.install."
+            "python.install options require a Python setup scope that installs dependencies. Set [python].project_scope to \"install\" or \"requirements\", or remove python.install."
         ),
     }
 }
@@ -100,10 +106,7 @@ fn ensure_install_selectors_supported(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        config::Config,
-        languages::python::project::metadata::{PyProjectState, PyProjectTomlMetadata},
-    };
+    use crate::config::{Config, template::UvConfig};
     use std::path::PathBuf;
 
     fn ctx(
@@ -130,26 +133,35 @@ mod tests {
         ctx
     }
 
-    fn metadata(has_project_table: bool) -> PythonProjectMetadata {
-        if !has_project_table {
-            return PythonProjectMetadata {
-                pyproject: PyProjectState::Missing,
-            };
-        }
-
-        PythonProjectMetadata {
-            pyproject: PyProjectState::Present(PyProjectTomlMetadata {
-                has_project_table: true,
-            }),
-        }
+    fn ctx_with_uv_setup(
+        project_scope: PythonProjectScope,
+        setup: PythonUvSetupConfig,
+    ) -> PythonSetupContext {
+        let mut ctx = ctx(PythonPackageManager::Uv, project_scope);
+        ctx.config.python.uv_config = Some(UvConfig { setup });
+        ctx
     }
 
     #[test]
-    fn resolves_uv_install_with_project_table_to_sync() {
-        let plan = resolve_python_setup_plan(
-            &ctx(PythonPackageManager::Uv, PythonProjectScope::Install),
-            &metadata(true),
-        )
+    fn resolves_uv_install_to_editable_by_default() {
+        let plan =
+            resolve_python_setup_plan(&ctx(PythonPackageManager::Uv, PythonProjectScope::Install))
+                .unwrap();
+
+        assert_eq!(
+            plan.mode,
+            PythonSetupMode::EditableInstall {
+                installer: PythonInstaller::UvPip
+            }
+        );
+    }
+
+    #[test]
+    fn resolves_uv_sync_install_when_configured() {
+        let plan = resolve_python_setup_plan(&ctx_with_uv_setup(
+            PythonProjectScope::Install,
+            PythonUvSetupConfig::Sync,
+        ))
         .unwrap();
 
         assert_eq!(
@@ -161,11 +173,11 @@ mod tests {
     }
 
     #[test]
-    fn resolves_uv_requirements_with_project_table_to_no_project_sync() {
-        let plan = resolve_python_setup_plan(
-            &ctx(PythonPackageManager::Uv, PythonProjectScope::Requirements),
-            &metadata(true),
-        )
+    fn resolves_uv_sync_requirements_to_no_project_sync() {
+        let plan = resolve_python_setup_plan(&ctx_with_uv_setup(
+            PythonProjectScope::Requirements,
+            PythonUvSetupConfig::Sync,
+        ))
         .unwrap();
 
         assert_eq!(
@@ -177,43 +189,14 @@ mod tests {
     }
 
     #[test]
-    fn resolves_legacy_uv_paths() {
-        let install = resolve_python_setup_plan(
-            &ctx(PythonPackageManager::Uv, PythonProjectScope::Install),
-            &metadata(false),
-        )
-        .unwrap();
-        let requirements = resolve_python_setup_plan(
-            &ctx(PythonPackageManager::Uv, PythonProjectScope::Requirements),
-            &metadata(false),
-        )
-        .unwrap();
-
-        assert_eq!(
-            install.mode,
-            PythonSetupMode::EditableInstall {
-                installer: PythonInstaller::UvPip
-            }
-        );
-        assert_eq!(
-            requirements.mode,
-            PythonSetupMode::RequirementsFile {
-                installer: PythonInstaller::UvPip
-            }
-        );
-    }
-
-    #[test]
     fn resolves_pip_paths() {
-        let install = resolve_python_setup_plan(
-            &ctx(PythonPackageManager::Pip, PythonProjectScope::Install),
-            &metadata(true),
-        )
-        .unwrap();
-        let requirements = resolve_python_setup_plan(
-            &ctx(PythonPackageManager::Pip, PythonProjectScope::Requirements),
-            &metadata(true),
-        )
+        let install =
+            resolve_python_setup_plan(&ctx(PythonPackageManager::Pip, PythonProjectScope::Install))
+                .unwrap();
+        let requirements = resolve_python_setup_plan(&ctx(
+            PythonPackageManager::Pip,
+            PythonProjectScope::Requirements,
+        ))
         .unwrap();
 
         assert_eq!(
@@ -232,26 +215,21 @@ mod tests {
 
     #[test]
     fn resolves_base_for_every_manager() {
-        let plan = resolve_python_setup_plan(
-            &ctx(PythonPackageManager::Pip, PythonProjectScope::Base),
-            &metadata(true),
-        )
-        .unwrap();
+        let plan =
+            resolve_python_setup_plan(&ctx(PythonPackageManager::Pip, PythonProjectScope::Base))
+                .unwrap();
 
         assert_eq!(plan.mode, PythonSetupMode::Base);
     }
 
     #[test]
     fn rejects_groups_for_editable_install() {
-        let error = resolve_python_setup_plan(
-            &ctx_with_install(
-                PythonPackageManager::Pip,
-                PythonProjectScope::Install,
-                &["dev"],
-                &[],
-            ),
-            &metadata(true),
-        )
+        let error = resolve_python_setup_plan(&ctx_with_install(
+            PythonPackageManager::Pip,
+            PythonProjectScope::Install,
+            &["dev"],
+            &[],
+        ))
         .unwrap_err();
 
         assert!(
@@ -263,15 +241,12 @@ mod tests {
 
     #[test]
     fn rejects_install_options_for_requirements_file() {
-        let error = resolve_python_setup_plan(
-            &ctx_with_install(
-                PythonPackageManager::Pip,
-                PythonProjectScope::Requirements,
-                &[],
-                &["cli"],
-            ),
-            &metadata(false),
-        )
+        let error = resolve_python_setup_plan(&ctx_with_install(
+            PythonPackageManager::Pip,
+            PythonProjectScope::Requirements,
+            &[],
+            &["cli"],
+        ))
         .unwrap_err();
 
         assert!(
@@ -279,5 +254,17 @@ mod tests {
                 .to_string()
                 .contains("python.install options cannot be applied")
         );
+    }
+
+    #[test]
+    fn rejects_uv_settings_for_pip() {
+        let mut ctx = ctx(PythonPackageManager::Pip, PythonProjectScope::Install);
+        ctx.config.python.uv_config = Some(UvConfig {
+            setup: PythonUvSetupConfig::Sync,
+        });
+
+        let error = resolve_python_setup_plan(&ctx).unwrap_err();
+
+        assert!(error.to_string().contains("[python.uv] settings require"));
     }
 }

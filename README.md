@@ -193,8 +193,11 @@ initial_message = "Initial commit"
 
 [python]
 language_version = "3"
-package_manager = "auto"     # auto | uv | pip
-project_scope = "auto"       # auto | base | requirements | install
+package_manager = "uv"       # uv | pip
+project_scope = "base"       # base | requirements | install
+
+[python.uv]
+setup = "editable"           # editable | sync
 
 [python.install]
 # Explicit setup-time install selectors. Plato does not create or infer these.
@@ -206,8 +209,8 @@ version_fallback = false
 
 [rust]
 toolchain = "stable"
-project_scope = "auto"       # auto | base | fetch | build
-project_type = "auto"        # auto | binary | bin | library | lib
+project_scope = "base"       # base | fetch | build
+project_type = "binary"      # binary | bin | library | lib
 cargo_init = false
 ```
 
@@ -215,17 +218,19 @@ cargo_init = false
 `install` or `requirements`. Plato passes only explicitly configured selectors;
 it does not create or infer dependency groups/extras.
 
-| Resolved setup path | `extras` | `groups` |
-| --- | --- | --- |
-| `uv sync` | yes | yes |
-| `uv sync --no-install-project` | yes | yes |
-| editable install, e.g. `pip install -e ...` or `uv pip install -e ...` | yes | no |
-| requirements file install, e.g. `pip install -r ...` or `uv pip install -r ...` | no | no |
+| Package manager/setup | Scope | Command shape | `extras` | `groups` |
+| --- | --- | --- | --- | --- |
+| `uv`, `setup = "editable"` | `install` | `uv pip install -e ...` | yes | no |
+| `uv`, `setup = "editable"` | `requirements` | `uv pip install -r ...` | no | no |
+| `uv`, `setup = "sync"` | `install` | `uv sync` | yes | yes |
+| `uv`, `setup = "sync"` | `requirements` | `uv sync --no-install-project` | yes | yes |
+| `pip` | `install` | `pip install -e ...` | yes | no |
+| `pip` | `requirements` | `pip install -r ...` | no | no |
 
-`groups` require a modern `pyproject.toml` with a `[project]` table and the `uv`
-package manager, so Plato can install them through project metadata instead of
-guessing from template files. `extras` are passed to editable installs as
-targets such as `.[cli]`.
+`[python.uv].setup = "editable"` is the default when omitted. `sync` is
+available only with `package_manager = "uv"`. `groups` are passed only to
+`uv sync`; `extras` are passed to `uv sync` and editable installs as targets such
+as `.[cli]`.
 
 Plato does not validate Python package metadata. `uv`, `pip`, and the selected
 build backend remain responsible for errors such as missing extras, missing

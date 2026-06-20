@@ -6,8 +6,6 @@ use crate::{
     languages::LanguageSetupContext,
 };
 
-use self::shared::get_python_project_scope;
-
 pub(crate) mod pip;
 pub(crate) mod project;
 pub(crate) mod shared;
@@ -24,7 +22,6 @@ pub(crate) enum PythonProjectScope {
 pub(crate) enum PythonPackageManager {
     Pip,
     Uv,
-    None,
 }
 
 pub(crate) struct PythonSetupContext {
@@ -40,9 +37,6 @@ impl PythonSetupContext {
         package_manager: PythonPackageManager,
     ) -> Self {
         let project_scope = match ctx.config.python.project_scope {
-            PythonProjectScopeConfig::Auto => {
-                get_python_project_scope(&ctx.target_path, &ctx.project_name)
-            }
             PythonProjectScopeConfig::Base => PythonProjectScope::Base,
             PythonProjectScopeConfig::Install => PythonProjectScope::Install,
             PythonProjectScopeConfig::Requirements => PythonProjectScope::Requirements,

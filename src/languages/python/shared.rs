@@ -1,8 +1,7 @@
 use crate::config::PythonPackageManagerConfig;
 use crate::languages::LanguageSetupContext;
+use crate::languages::python::PythonPackageManager;
 use crate::languages::python::project::metadata::{RawPyProject, parse_pyproject};
-use crate::languages::python::{PythonPackageManager, PythonProjectScope};
-use crate::util::is_installed;
 use anyhow::{Context, Ok, Result, bail};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -14,68 +13,11 @@ pub(super) struct PythonVersionedCommands {
     pub(super) unknown: String,
 }
 
-pub(crate) fn get_python_project_scope(target: &Path, project_name: &str) -> PythonProjectScope {
-    use PythonProjectScope::{Base, Install, Requirements};
-
-    let has_pyproject = target.join("pyproject.toml").exists();
-    let has_requirements = target.join("requirements.txt").exists();
-    let normalized_project_name = project_name.replace('-', "_");
-
-    let has_src_package = target
-        .join(format!("src/{project_name}/__init__.py"))
-        .exists()
-        || target
-            .join(format!("src/{normalized_project_name}/__init__.py"))
-            .exists();
-
-    let has_flat_package = target.join(format!("{project_name}/__init__.py")).exists()
-        || target
-            .join(format!("{normalized_project_name}/__init__.py"))
-            .exists();
-
-    if has_pyproject && (has_src_package || has_flat_package) {
-        return Install;
-    }
-    if has_pyproject || has_requirements {
-        return Requirements;
-    }
-    Base
-}
-
 pub(crate) fn get_python_package_manager(ctx: &LanguageSetupContext) -> PythonPackageManager {
     match ctx.config.python.package_manager {
-        PythonPackageManagerConfig::Auto => resolve_python_package_manager(
-            &ctx.config.python.language_version,
-            ctx.config.python.pip_config.version_fallback,
-        ),
         PythonPackageManagerConfig::Uv => PythonPackageManager::Uv,
         PythonPackageManagerConfig::Pip => PythonPackageManager::Pip,
     }
-}
-
-// Keep auto-detection quiet here: pip command fallback warnings are emitted in
-// `PipPackageManagerSetup::setup`, so logging them again at detection time would duplicate output.
-//
-fn resolve_python_package_manager(version: &str, pip_fallback: bool) -> PythonPackageManager {
-    if is_installed("uv") {
-        return PythonPackageManager::Uv;
-    }
-
-    let python_commands = build_python_versioned_commands(version);
-    if !pip_fallback && is_installed(&python_commands.requested) {
-        return PythonPackageManager::Pip;
-    }
-
-    if pip_fallback
-        && (is_installed(&python_commands.requested)
-            || is_installed(&python_commands.major)
-            || is_installed(&python_commands.unknown))
-    {
-        return PythonPackageManager::Pip;
-    }
-
-    eprintln!("No supported python package manager found for 'project_scope: auto'.");
-    PythonPackageManager::None
 }
 
 pub(crate) fn requirements_from_pyproject(pyproject: RawPyProject) -> Result<Vec<String>> {

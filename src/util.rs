@@ -59,10 +59,6 @@ pub(crate) fn open_config_file(config_file_path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn is_installed(cmd: &str) -> bool {
-    Command::new(cmd).arg("--help").output().is_ok()
-}
-
 pub(crate) fn execute_command<I, S>(cmd: &str, args: I, target: &Path) -> Result<()>
 where
     I: IntoIterator<Item = S>,

@@ -8,9 +8,8 @@ use std::path::{Path, PathBuf};
 #[serde(rename_all = "lowercase")]
 pub(crate) enum PythonPackageManagerConfig {
     Pip,
-    Uv,
     #[default]
-    Auto,
+    Uv,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Default)]
@@ -20,7 +19,14 @@ pub(crate) enum PythonProjectScopeConfig {
     Install,
     #[default]
     Base,
-    Auto,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum PythonUvSetupConfig {
+    #[default]
+    Editable,
+    Sync,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Default)]
@@ -30,18 +36,16 @@ pub(crate) enum RustProjectScopeConfig {
     Fetch,
     #[default]
     Base,
-    Auto,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum RustProjectTypeConfig {
+    #[default]
     #[serde(alias = "bin")]
     Binary,
     #[serde(alias = "lib")]
     Library,
-    #[default]
-    Auto,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Default)]
@@ -194,8 +198,18 @@ pub(crate) struct PythonConfig {
     pub(crate) project_scope: PythonProjectScopeConfig,
     #[serde(default)]
     pub(crate) install: PythonInstallConfig,
+    #[serde(default, rename = "uv")]
+    pub(crate) uv_config: Option<UvConfig>,
     #[serde(default, rename = "pip")]
     pub(crate) pip_config: PipConfig,
+}
+
+impl PythonConfig {
+    pub(crate) fn uv_setup(&self) -> PythonUvSetupConfig {
+        self.uv_config
+            .map(|config| config.setup)
+            .unwrap_or_default()
+    }
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]
@@ -204,6 +218,12 @@ pub(crate) struct PythonInstallConfig {
     pub(crate) groups: Vec<String>,
     #[serde(default)]
     pub(crate) extras: Vec<String>,
+}
+
+#[derive(Deserialize, Debug, Default, Clone, Copy)]
+pub(crate) struct UvConfig {
+    #[serde(default)]
+    pub(crate) setup: PythonUvSetupConfig,
 }
 
 impl PythonInstallConfig {

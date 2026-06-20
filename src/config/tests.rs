@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use crate::config::{
-    Config, GitAutoCrlfConfig, GitAutoCrlfMode, GitEolConfig, GlobalConfig, TemplateEntry,
-    parse_global_config_file,
+    Config, GitAutoCrlfConfig, GitAutoCrlfMode, GitEolConfig, GlobalConfig,
+    PythonPackageManagerConfig, PythonProjectScopeConfig, PythonUvSetupConfig,
+    RustProjectScopeConfig, RustProjectTypeConfig, TemplateEntry, parse_global_config_file,
 };
 
 #[test]
@@ -168,12 +169,53 @@ language_version = "3.12"
 package_manager = "uv"
 project_scope = "install"
 
+[python.uv]
+setup = "sync"
+
 [python.install]
 groups = ["dev", "lint"]
 extras = ["cli"]
 "#;
     let config: Config = toml::from_str(raw).unwrap();
 
+    assert!(matches!(
+        config.python.package_manager,
+        PythonPackageManagerConfig::Uv
+    ));
+    assert!(matches!(
+        config.python.project_scope,
+        PythonProjectScopeConfig::Install
+    ));
+    assert_eq!(config.python.uv_setup(), PythonUvSetupConfig::Sync);
     assert_eq!(config.python.install.groups, ["dev", "lint"]);
     assert_eq!(config.python.install.extras, ["cli"]);
+}
+
+#[test]
+fn defaults_python_to_uv_base_editable() {
+    let config: Config = toml::from_str("").unwrap();
+
+    assert!(matches!(
+        config.python.package_manager,
+        PythonPackageManagerConfig::Uv
+    ));
+    assert!(matches!(
+        config.python.project_scope,
+        PythonProjectScopeConfig::Base
+    ));
+    assert_eq!(config.python.uv_setup(), PythonUvSetupConfig::Editable);
+}
+
+#[test]
+fn defaults_rust_to_base_binary() {
+    let config: Config = toml::from_str("").unwrap();
+
+    assert!(matches!(
+        config.rust.project_scope,
+        RustProjectScopeConfig::Base
+    ));
+    assert!(matches!(
+        config.rust.project_type,
+        RustProjectTypeConfig::Binary
+    ));
 }

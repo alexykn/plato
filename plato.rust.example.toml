@@ -69,11 +69,11 @@ crate_dir = { path = "crate-template", replace = "{{ rust_package_name }}" }
 # Rust toolchain passed to Cargo commands, e.g. `cargo +stable build`.
 toolchain = "stable"
 
-# Supported options: auto | base | fetch | build
-project_scope = "auto"
+# Supported options: base | fetch | build
+project_scope = "base"
 
-# Supported options: auto | binary | bin | library | lib
-project_type = "auto"
+# Supported options: binary | bin | library | lib
+project_type = "binary"
 
 # If true, Plato may run cargo init for templates that do not already contain a
 # Cargo project. Leave false when the template owns Cargo.toml and src layout.
