@@ -59,11 +59,6 @@ pub(crate) fn open_config_file(config_file_path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn setup_git(target: &Path) -> Result<()> {
-    execute_command("git", ["init"], target)?;
-    Ok(())
-}
-
 pub(crate) fn is_installed(cmd: &str) -> bool {
     Command::new(cmd).arg("--help").output().is_ok()
 }

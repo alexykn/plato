@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
-use crate::config::{Config, GlobalConfig, TemplateEntry, parse_global_config_file};
+use crate::config::{
+    Config, GitAutoCrlfConfig, GitAutoCrlfMode, GitEolConfig, GlobalConfig, TemplateEntry,
+    parse_global_config_file,
+};
 
 #[test]
 fn deserializes_global_template_entries() {
@@ -81,4 +84,78 @@ deps = { path = "deps/funny", replace = "deps/{{ package_deps | regex_replace('^
         config.path.replace["deps"].path,
         PathBuf::from("deps/funny")
     );
+}
+
+#[test]
+fn default_template_git_config_does_not_force_local_git_settings() {
+    let config: Config = toml::from_str("").unwrap();
+
+    assert_eq!(config.git.initial_branch, None);
+    assert_eq!(config.git.user.name, None);
+    assert_eq!(config.git.user.email, None);
+    assert_eq!(config.git.user.signing_key, None);
+    assert_eq!(config.git.commit.gpgsign, None);
+    assert!(!config.git.commit.initial);
+    assert_eq!(config.git.commit.initial_message, "Initial commit");
+    assert_eq!(config.git.core.hooks_path, None);
+    assert!(config.git.core.autocrlf.is_none());
+    assert!(config.git.core.eol.is_none());
+    assert_eq!(config.git.core.filemode, None);
+}
+
+#[test]
+fn deserializes_template_git_config() {
+    let raw = r#"
+[git]
+initial_branch = "trunk"
+
+[git.user]
+name = "Jane Doe"
+email = "jane@example.com"
+signing_key = "ABC123"
+
+[git.commit]
+gpgsign = true
+initial = true
+initial_message = "Bootstrap project"
+
+[git.core]
+hooks_path = ".githooks"
+autocrlf = "input"
+eol = "lf"
+filemode = false
+"#;
+    let config: Config = toml::from_str(raw).unwrap();
+
+    assert_eq!(config.git.initial_branch.as_deref(), Some("trunk"));
+    assert_eq!(config.git.user.name.as_deref(), Some("Jane Doe"));
+    assert_eq!(config.git.user.email.as_deref(), Some("jane@example.com"));
+    assert_eq!(config.git.user.signing_key.as_deref(), Some("ABC123"));
+    assert_eq!(config.git.commit.gpgsign, Some(true));
+    assert!(config.git.commit.initial);
+    assert_eq!(config.git.commit.initial_message, "Bootstrap project");
+    assert_eq!(
+        config.git.core.hooks_path.as_deref(),
+        Some(PathBuf::from(".githooks").as_path())
+    );
+    assert!(matches!(
+        config.git.core.autocrlf,
+        Some(GitAutoCrlfConfig::Mode(GitAutoCrlfMode::Input))
+    ));
+    assert!(matches!(config.git.core.eol, Some(GitEolConfig::Lf)));
+    assert_eq!(config.git.core.filemode, Some(false));
+}
+
+#[test]
+fn deserializes_template_git_autocrlf_bool() {
+    let raw = r"
+[git.core]
+autocrlf = false
+";
+    let config: Config = toml::from_str(raw).unwrap();
+
+    assert!(matches!(
+        config.git.core.autocrlf,
+        Some(GitAutoCrlfConfig::Bool(false))
+    ));
 }

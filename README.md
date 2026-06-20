@@ -137,6 +137,26 @@ A template may contain `plato.toml`. This file is configuration only and is not 
 template_language = "base"   # base | python | py | rust | rs
 setup_git = false
 
+[git]
+# If unset, Plato runs plain `git init` and Git uses the user's global defaults.
+# initial_branch = "main"
+
+[git.user]
+# name = "Jane Doe"
+# email = "jane@example.com"
+# signing_key = "ABC123DEF456"
+
+[git.commit]
+# gpgsign = true
+initial = false
+initial_message = "Initial commit"
+
+[git.core]
+# hooks_path = ".githooks"
+# autocrlf = false          # true | false | input
+# eol = "lf"               # lf | crlf | native
+# filemode = true
+
 [template.context]
 # arbitrary key-value pairs for path and file content templates
 

@@ -72,6 +72,8 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) path: PathConfig,
     #[serde(default)]
+    pub(crate) git: GitConfig,
+    #[serde(default)]
     pub(crate) python: PythonConfig,
     #[serde(default)]
     pub(crate) rust: RustConfig,
@@ -101,6 +103,85 @@ pub(crate) struct PathConfig {
 pub(crate) struct PathReplacementConfig {
     pub(crate) path: PathBuf,
     pub(crate) replace: String,
+}
+
+fn get_default_initial_commit_message() -> String {
+    String::from("Initial commit")
+}
+
+#[derive(Deserialize, Debug, Default, Clone)]
+pub(crate) struct GitConfig {
+    #[serde(default)]
+    pub(crate) initial_branch: Option<String>,
+    #[serde(default)]
+    pub(crate) user: GitUserConfig,
+    #[serde(default)]
+    pub(crate) commit: GitCommitConfig,
+    #[serde(default)]
+    pub(crate) core: GitCoreConfig,
+}
+
+#[derive(Deserialize, Debug, Default, Clone)]
+pub(crate) struct GitUserConfig {
+    #[serde(default)]
+    pub(crate) name: Option<String>,
+    #[serde(default)]
+    pub(crate) email: Option<String>,
+    #[serde(default)]
+    pub(crate) signing_key: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub(crate) struct GitCommitConfig {
+    #[serde(default)]
+    pub(crate) gpgsign: Option<bool>,
+    #[serde(default)]
+    pub(crate) initial: bool,
+    #[serde(default = "get_default_initial_commit_message")]
+    pub(crate) initial_message: String,
+}
+
+impl Default for GitCommitConfig {
+    fn default() -> Self {
+        Self {
+            gpgsign: None,
+            initial: false,
+            initial_message: get_default_initial_commit_message(),
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Default, Clone)]
+pub(crate) struct GitCoreConfig {
+    #[serde(default)]
+    pub(crate) hooks_path: Option<PathBuf>,
+    #[serde(default)]
+    pub(crate) autocrlf: Option<GitAutoCrlfConfig>,
+    #[serde(default)]
+    pub(crate) eol: Option<GitEolConfig>,
+    #[serde(default)]
+    pub(crate) filemode: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum GitAutoCrlfConfig {
+    Bool(bool),
+    Mode(GitAutoCrlfMode),
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum GitAutoCrlfMode {
+    Input,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum GitEolConfig {
+    Lf,
+    Crlf,
+    Native,
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]

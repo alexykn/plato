@@ -7,6 +7,7 @@ pub(crate) use global::{
     GitProvider, GlobalConfig, TemplateEntry, get_global_config_path, parse_global_config_file,
 };
 pub(crate) use template::{
-    Config, PathReplacementConfig, PythonPackageManagerConfig, PythonProjectScopeConfig,
-    RustProjectScopeConfig, RustProjectTypeConfig, TemplateLanguage, parse_config_file,
+    Config, GitAutoCrlfConfig, GitAutoCrlfMode, GitEolConfig, PathReplacementConfig,
+    PythonPackageManagerConfig, PythonProjectScopeConfig, RustProjectScopeConfig,
+    RustProjectTypeConfig, TemplateLanguage, parse_config_file,
 };

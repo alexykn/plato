@@ -16,25 +16,36 @@ struct RegexReplaceOptions {
 }
 
 pub(crate) fn register(env: &mut minijinja::Environment<'_>) {
-    env.add_filter("regex_replace", regex_replace);
-    env.add_filter("regex_search", regex_search);
-    env.add_filter("regex_findall", regex_findall);
-    env.add_filter("regex_escape", regex_escape);
+    env.add_filter(
+        "regex_replace",
+        |value: String, pattern: String, replacement: Option<String>, kwargs: Kwargs| {
+            regex_replace(&value, &pattern, replacement.as_deref(), &kwargs)
+        },
+    );
+    env.add_filter(
+        "regex_search",
+        |value: String, pattern: String, args: Rest<Value>| regex_search(&value, &pattern, &args),
+    );
+    env.add_filter(
+        "regex_findall",
+        |value: String, pattern: String, kwargs: Kwargs| regex_findall(&value, &pattern, &kwargs),
+    );
+    env.add_filter("regex_escape", |value: String| regex_escape(&value));
 }
 
 fn regex_replace(
-    value: String,
-    pattern: String,
-    replacement: Option<String>,
-    kwargs: Kwargs,
+    value: &str,
+    pattern: &str,
+    replacement: Option<&str>,
+    kwargs: &Kwargs,
 ) -> Result<String, Error> {
-    let options = parse_regex_replace_options(&kwargs)?;
+    let options = parse_regex_replace_options(kwargs)?;
     kwargs.assert_all_used()?;
 
-    let regex = compile_regex(&pattern, options.flags)?;
+    let regex = compile_regex(pattern, options.flags)?;
     let replacement = replacement.unwrap_or_default();
     let (rendered, replacement_count) =
-        replace_with_ansible_replacement(&regex, &value, &replacement, options.count)?;
+        replace_with_ansible_replacement(&regex, value, replacement, options.count)?;
 
     if options.mandatory_count != 0 && replacement_count != options.mandatory_count {
         return Err(invalid_operation(format!(
@@ -46,13 +57,13 @@ fn regex_replace(
     Ok(rendered)
 }
 
-fn regex_search(value: String, pattern: String, args: Rest<Value>) -> Result<Value, Error> {
-    let (selectors, kwargs): (&[Value], Kwargs) = from_args(&args)?;
+fn regex_search(value: &str, pattern: &str, args: &Rest<Value>) -> Result<Value, Error> {
+    let (selectors, kwargs): (&[Value], Kwargs) = from_args(args)?;
     let flags = parse_regex_flags(&kwargs)?;
     kwargs.assert_all_used()?;
 
-    let regex = compile_regex(&pattern, flags)?;
-    let Some(captures) = regex.captures(&value) else {
+    let regex = compile_regex(pattern, flags)?;
+    let Some(captures) = regex.captures(value) else {
         return Ok(Value::UNDEFINED);
     };
 
@@ -77,16 +88,16 @@ fn regex_search(value: String, pattern: String, args: Rest<Value>) -> Result<Val
     }
 }
 
-fn regex_findall(value: String, pattern: String, kwargs: Kwargs) -> Result<Value, Error> {
-    let flags = parse_regex_flags(&kwargs)?;
+fn regex_findall(value: &str, pattern: &str, kwargs: &Kwargs) -> Result<Value, Error> {
+    let flags = parse_regex_flags(kwargs)?;
     kwargs.assert_all_used()?;
 
-    let regex = compile_regex(&pattern, flags)?;
+    let regex = compile_regex(pattern, flags)?;
     let capture_count = regex.captures_len();
 
     if capture_count <= 1 {
         let matches = regex
-            .find_iter(&value)
+            .find_iter(value)
             .map(|regex_match| regex_match.as_str().to_string())
             .collect::<Vec<_>>();
         return Ok(Value::from_serialize(matches));
@@ -94,14 +105,14 @@ fn regex_findall(value: String, pattern: String, kwargs: Kwargs) -> Result<Value
 
     if capture_count == 2 {
         let matches = regex
-            .captures_iter(&value)
+            .captures_iter(value)
             .map(|captures| capture_text(&captures, 1).unwrap_or_default())
             .collect::<Vec<_>>();
         return Ok(Value::from_serialize(matches));
     }
 
     let matches = regex
-        .captures_iter(&value)
+        .captures_iter(value)
         .map(|captures| {
             (1..capture_count)
                 .map(|index| capture_text(&captures, index).unwrap_or_default())
@@ -111,8 +122,8 @@ fn regex_findall(value: String, pattern: String, kwargs: Kwargs) -> Result<Value
     Ok(Value::from_serialize(matches))
 }
 
-fn regex_escape(value: String) -> String {
-    regex::escape(&value)
+fn regex_escape(value: &str) -> String {
+    regex::escape(value)
 }
 
 fn parse_regex_replace_options(kwargs: &Kwargs) -> Result<RegexReplaceOptions, Error> {

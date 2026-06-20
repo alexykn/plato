@@ -12,12 +12,16 @@ pub(crate) mod templates;
 pub(crate) mod util;
 pub(crate) mod workspace;
 
-use crate::config::{Config, TemplateLanguage};
-use crate::git::TempCheckout;
+use crate::config::Config;
+use crate::config::TemplateLanguage;
+use crate::git::{
+    GitCommitLocalConfig, GitCoreConfig, GitInitialCommit, GitLocalConfig, GitSetupOptions,
+    GitUserConfig, TempCheckout, setup_git_repository,
+};
 use crate::guard::ProjectGuard;
 use crate::languages::{LanguageSetup, LanguageSetupContext, PythonSetup, RustSetup};
 use crate::templates::{TemplateRequest, TemplateResolver};
-use crate::util::{bail_if_target_path_exists, open_config_file, setup_git};
+use crate::util::{bail_if_target_path_exists, open_config_file};
 use crate::workspace::DefaultWorkspaceSetup;
 use crate::workspace::{WorkspaceSetup, WorkspaceSetupContext};
 
@@ -122,10 +126,37 @@ pub fn run(options: RunOptions) -> Result<()> {
         TemplateLanguage::Base => Ok(()),
     }?;
     if should_setup_git {
-        setup_git(&target_path)?;
+        setup_git_repository(&target_path, git_setup_options(&exec_ctx.config))?;
     }
     guard.release();
     Ok(())
+}
+
+fn git_setup_options(config: &Config) -> GitSetupOptions<'_> {
+    let git = &config.git;
+
+    GitSetupOptions {
+        initial_branch: git.initial_branch.as_deref(),
+        local_config: GitLocalConfig {
+            user: GitUserConfig {
+                name: git.user.name.as_deref(),
+                email: git.user.email.as_deref(),
+                signing_key: git.user.signing_key.as_deref(),
+            },
+            commit: GitCommitLocalConfig {
+                gpgsign: git.commit.gpgsign,
+            },
+            core: GitCoreConfig {
+                hooks_path: git.core.hooks_path.as_deref(),
+                autocrlf: git.core.autocrlf.map(Into::into),
+                eol: git.core.eol.map(Into::into),
+                filemode: git.core.filemode,
+            },
+        },
+        initial_commit: git.commit.initial.then_some(GitInitialCommit {
+            message: &git.commit.initial_message,
+        }),
+    }
 }
 
 fn run_language_setup<L>(exec_ctx: &ExecutionContext, language_setup: &L) -> Result<()>
