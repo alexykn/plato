@@ -148,18 +148,6 @@ pub(crate) fn requirements_from_pyproject(pyproject: PyProject) -> Result<Vec<St
     Ok(requirements)
 }
 
-pub(crate) fn dev_groups_from_pyproject(target: &Path) -> Result<Vec<String>> {
-    let pyproject_path = target.join("pyproject.toml");
-    let pyproject = parse_pyproject(&pyproject_path)?;
-    let mut dev_groups: Vec<String> = Vec::new();
-    if let Some(group_deps) = pyproject.dependency_groups {
-        for (group, _) in group_deps {
-            dev_groups.push(group);
-        }
-    }
-    Ok(dev_groups)
-}
-
 fn find_file_in_target(target: &Path, file: &str) -> Option<PathBuf> {
     let file_path = target.join(file);
     if file_path.exists() {

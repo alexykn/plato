@@ -8,6 +8,6 @@ pub(crate) use global::{
 };
 pub(crate) use template::{
     Config, GitAutoCrlfConfig, GitAutoCrlfMode, GitEolConfig, PathReplacementConfig,
-    PythonPackageManagerConfig, PythonProjectScopeConfig, RustProjectScopeConfig,
-    RustProjectTypeConfig, TemplateLanguage, parse_config_file,
+    PythonInstallConfig, PythonPackageManagerConfig, PythonProjectScopeConfig,
+    RustProjectScopeConfig, RustProjectTypeConfig, TemplateLanguage, parse_config_file,
 };

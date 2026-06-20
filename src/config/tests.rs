@@ -159,3 +159,21 @@ autocrlf = false
         Some(GitAutoCrlfConfig::Bool(false))
     ));
 }
+
+#[test]
+fn deserializes_python_install_config() {
+    let raw = r#"
+[python]
+language_version = "3.12"
+package_manager = "uv"
+project_scope = "install"
+
+[python.install]
+groups = ["dev", "lint"]
+extras = ["cli"]
+"#;
+    let config: Config = toml::from_str(raw).unwrap();
+
+    assert_eq!(config.python.install.groups, ["dev", "lint"]);
+    assert_eq!(config.python.install.extras, ["cli"]);
+}

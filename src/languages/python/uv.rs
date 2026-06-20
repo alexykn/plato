@@ -3,6 +3,10 @@ use anyhow::Result;
 use crate::{
     languages::python::{
         PythonPackageManagerSetup, PythonProjectScope, PythonSetupContext,
+        install::{
+            editable_install_target, ensure_no_groups_for_editable_install,
+            ensure_no_install_options_for_requirements_file, extend_uv_sync_args,
+        },
         shared::{ensure_readme, get_or_create_requirements_file, has_pyproject_project_table},
     },
     util::execute_command,
@@ -22,18 +26,32 @@ impl PythonPackageManagerSetup for UvPackageManagerSetup {
             PythonProjectScope::Install => {
                 ensure_readme(&ctx.target_path)?;
                 if has_project_table {
-                    return execute_command("uv", ["sync"], &ctx.target_path);
+                    let mut sync_args = vec!["sync".to_string()];
+                    extend_uv_sync_args(&mut sync_args, &ctx.config.python.install);
+                    return execute_command("uv", sync_args, &ctx.target_path);
                 }
-                execute_command("uv", ["pip", "install", "-e", "."], &ctx.target_path)
+                ensure_no_groups_for_editable_install(&ctx.config.python.install)?;
+                let editable_target = editable_install_target(&ctx.config.python.install.extras);
+                execute_command(
+                    "uv",
+                    [
+                        "pip".to_string(),
+                        "install".to_string(),
+                        "-e".to_string(),
+                        editable_target,
+                    ],
+                    &ctx.target_path,
+                )
             }
             PythonProjectScope::Requirements => {
                 if has_project_table {
-                    return execute_command(
-                        "uv",
-                        ["sync", "--no-install-project"],
-                        &ctx.target_path,
-                    );
+                    let mut sync_args = ["sync".to_string(), "--no-install-project".to_string()]
+                        .into_iter()
+                        .collect();
+                    extend_uv_sync_args(&mut sync_args, &ctx.config.python.install);
+                    return execute_command("uv", sync_args, &ctx.target_path);
                 }
+                ensure_no_install_options_for_requirements_file(&ctx.config.python.install)?;
                 let requirements_file = get_or_create_requirements_file(&ctx.target_path)?
                     .to_string_lossy()
                     .to_string();

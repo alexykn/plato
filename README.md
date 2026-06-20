@@ -170,6 +170,11 @@ language_version = "3"
 package_manager = "auto"     # auto | uv | pip
 project_scope = "auto"       # auto | base | requirements | install
 
+[python.install]
+# Explicit setup-time install selectors. Plato does not create or infer these.
+groups = []
+extras = []
+
 [python.pip]
 version_fallback = false
 
@@ -179,6 +184,22 @@ project_scope = "auto"       # auto | base | fetch | build
 project_type = "auto"        # auto | binary | bin | library | lib
 cargo_init = false
 ```
+
+`[python.install]` applies only when the resolved Python project scope is
+`install` or `requirements`. Plato passes only explicitly configured selectors;
+it does not create, infer, or validate dependency groups/extras.
+
+| Resolved setup path | `extras` | `groups` |
+| --- | --- | --- |
+| `uv sync` | yes | yes |
+| `uv sync --no-install-project` | yes | yes |
+| editable install, e.g. `pip install -e ...` or `uv pip install -e ...` | yes | no |
+| requirements file install, e.g. `pip install -r ...` or `uv pip install -r ...` | no | no |
+
+`groups` require a modern `pyproject.toml` with a `[project]` table and the `uv`
+package manager, so Plato can install them through project metadata instead of
+guessing from template files. `extras` are passed to editable installs as
+targets such as `.[cli]`.
 
 ## Rendering Rules
 

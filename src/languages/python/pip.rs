@@ -15,9 +15,14 @@ fn get_pip_install_args() -> Vec<String> {
 }
 
 use crate::{
+    config::PythonInstallConfig,
     languages::python::{
         PythonPackageManagerSetup, PythonProjectScope, PythonSetupContext,
-        shared::{dev_groups_from_pyproject, ensure_readme},
+        install::{
+            editable_install_target, ensure_no_groups_for_editable_install,
+            ensure_no_install_options_for_requirements_file,
+        },
+        shared::ensure_readme,
     },
     util::execute_command,
 };
@@ -33,8 +38,12 @@ impl PythonPackageManagerSetup for PipPackageManagerSetup {
         }
 
         match ctx.project_scope {
-            PythonProjectScope::Install => Self::install_project(&ctx.target_path),
-            PythonProjectScope::Requirements => Self::install_requirements(&ctx.target_path),
+            PythonProjectScope::Install => {
+                Self::install_project(&ctx.target_path, &ctx.config.python.install)
+            }
+            PythonProjectScope::Requirements => {
+                Self::install_requirements(&ctx.target_path, &ctx.config.python.install)
+            }
             PythonProjectScope::Base => Ok::<(), anyhow::Error>(()),
         }?;
         Ok(())
@@ -79,16 +88,13 @@ impl PipPackageManagerSetup {
         Ok(())
     }
 
-    fn install_project(target: &Path) -> Result<()> {
+    fn install_project(target: &Path, install: &PythonInstallConfig) -> Result<()> {
         let python_pip_exec = target.join(RELATIVE_VENV_PATH);
-        let dev_groups = dev_groups_from_pyproject(target)?;
         let mut pip_install_args = get_pip_install_args();
+        let editable_target = editable_install_target(&install.extras);
 
-        pip_install_args.extend(["-e".to_string(), ".".to_string()]);
-        for group in &dev_groups {
-            pip_install_args.push("--group".to_string());
-            pip_install_args.push(group.clone());
-        }
+        ensure_no_groups_for_editable_install(install)?;
+        pip_install_args.extend(["-e".to_string(), editable_target]);
         ensure_readme(target)?;
         execute_command(
             &python_pip_exec.to_string_lossy(),
@@ -98,8 +104,9 @@ impl PipPackageManagerSetup {
         Ok(())
     }
 
-    fn install_requirements(target: &Path) -> Result<()> {
+    fn install_requirements(target: &Path, install: &PythonInstallConfig) -> Result<()> {
         let python_pip_exec = target.join(RELATIVE_VENV_PATH);
+        ensure_no_install_options_for_requirements_file(install)?;
         let requirements_file = get_or_create_requirements_file(target)?
             .to_string_lossy()
             .to_string();

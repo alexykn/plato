@@ -192,8 +192,24 @@ pub(crate) struct PythonConfig {
     pub(crate) package_manager: PythonPackageManagerConfig,
     #[serde(default)]
     pub(crate) project_scope: PythonProjectScopeConfig,
+    #[serde(default)]
+    pub(crate) install: PythonInstallConfig,
     #[serde(default, rename = "pip")]
     pub(crate) pip_config: PipConfig,
+}
+
+#[derive(Deserialize, Debug, Default, Clone)]
+pub(crate) struct PythonInstallConfig {
+    #[serde(default)]
+    pub(crate) groups: Vec<String>,
+    #[serde(default)]
+    pub(crate) extras: Vec<String>,
+}
+
+impl PythonInstallConfig {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.groups.is_empty() && self.extras.is_empty()
+    }
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]

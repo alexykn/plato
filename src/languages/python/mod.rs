@@ -6,13 +6,14 @@ use crate::{
     languages::LanguageSetupContext,
 };
 
-use self::shared::get_python_project_scope;
+use self::{install::ensure_supported_scope, shared::get_python_project_scope};
 
+pub(crate) mod install;
 pub(crate) mod pip;
 pub(crate) mod shared;
 pub(crate) mod uv;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PythonProjectScope {
     Requirements,
     Install,
@@ -44,6 +45,8 @@ impl TryFrom<LanguageSetupContext> for PythonSetupContext {
             PythonProjectScopeConfig::Install => PythonProjectScope::Install,
             PythonProjectScopeConfig::Requirements => PythonProjectScope::Requirements,
         };
+
+        ensure_supported_scope(project_scope, &ctx.config.python.install)?;
 
         Ok(Self {
             target_path: ctx.target_path,
