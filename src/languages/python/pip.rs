@@ -1,5 +1,5 @@
-use super::shared::{build_python_versioned_commands, get_or_create_requirements_file};
-use anyhow::{Context, Result, bail};
+use super::shared::get_or_create_requirements_file;
+use anyhow::{Result, bail};
 use std::path::Path;
 
 static PYTHON_VENV_CREATION_ARGS: [&str; 3] = ["-m", "venv", ".venv"];
@@ -32,11 +32,7 @@ impl PythonPackageManagerSetup for PipPackageManagerSetup {
     }
 
     fn setup(&self, ctx: PythonSetupContext, plan: PythonSetupPlan) -> Result<()> {
-        if ctx.config.python.pip_config.version_fallback {
-            Self::setup_venv_with_fallback(&ctx.config.python.language_version, &ctx.target_path)?;
-        } else {
-            Self::setup_venv(&ctx.config.python.language_version, &ctx.target_path)?;
-        }
+        Self::setup_venv(&ctx.config.python.language_version, &ctx.target_path)?;
 
         match plan.mode {
             PythonSetupMode::EditableInstall {
@@ -56,37 +52,6 @@ impl PipPackageManagerSetup {
     fn setup_venv(version: &str, target: &Path) -> Result<()> {
         let python_command = format!("python{version}");
         execute_command(&python_command, PYTHON_VENV_CREATION_ARGS, target)?;
-        Ok(())
-    }
-
-    fn setup_venv_with_fallback(version: &str, target: &Path) -> Result<()> {
-        let python_commands = build_python_versioned_commands(version);
-
-        execute_command(
-            &python_commands.requested,
-            PYTHON_VENV_CREATION_ARGS,
-            target,
-        )
-        .inspect_err(|e| {
-            eprintln!(
-                "{e}\nWARNING: Unable to execute {}, falling back to {}",
-                python_commands.requested, python_commands.major
-            );
-        })
-        .or_else(|_| execute_command(&python_commands.major, PYTHON_VENV_CREATION_ARGS, target))
-        .inspect_err(|e| {
-            eprintln!(
-                "{e}\nWARNING: Unable to execute {}, falling back to {}",
-                python_commands.major, python_commands.unknown
-            );
-        })
-        .or_else(|_| execute_command(&python_commands.unknown, PYTHON_VENV_CREATION_ARGS, target))
-        .with_context(|| {
-            format!(
-                "Unable to create venv with any Python command: {}, {}, {}",
-                python_commands.requested, python_commands.major, python_commands.unknown
-            )
-        })?;
         Ok(())
     }
 

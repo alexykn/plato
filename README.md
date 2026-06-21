@@ -204,9 +204,6 @@ setup = "editable"           # editable | sync
 groups = []
 extras = []
 
-[python.pip]
-version_fallback = false
-
 [rust]
 toolchain = "stable"
 components = []             # e.g. ["rustfmt", "clippy"]

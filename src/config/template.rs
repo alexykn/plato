@@ -200,8 +200,6 @@ pub(crate) struct PythonConfig {
     pub(crate) install: PythonInstallConfig,
     #[serde(default, rename = "uv")]
     pub(crate) uv_config: Option<UvConfig>,
-    #[serde(default, rename = "pip")]
-    pub(crate) pip_config: PipConfig,
 }
 
 impl PythonConfig {
@@ -230,12 +228,6 @@ impl PythonInstallConfig {
     pub(crate) fn is_empty(&self) -> bool {
         self.groups.is_empty() && self.extras.is_empty()
     }
-}
-
-#[derive(Deserialize, Debug, Default, Clone)]
-pub(crate) struct PipConfig {
-    #[serde(default)]
-    pub(crate) version_fallback: bool,
 }
 
 #[derive(Deserialize, Debug, Clone)]

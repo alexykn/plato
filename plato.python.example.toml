@@ -93,7 +93,3 @@ setup = "editable"
 # extras are supported by uv sync and editable installs.
 groups = []
 extras = ["cli"]
-
-[python.pip]
-# If true, pip setup falls back from pythonX.Y to pythonX to python.
-version_fallback = false
