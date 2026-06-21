@@ -5,8 +5,8 @@ use crate::ExecutionContext;
 use crate::config::Config;
 use crate::languages::python::pip::PipPackageManagerSetup;
 use crate::languages::python::shared::get_python_package_manager;
-use crate::languages::rust::RustPackageManagerSetup;
-use crate::languages::rust::{RustSetupContext, cargo::CargoPackageManagerSetup};
+use crate::languages::rust::RustProjectSetup;
+use crate::languages::rust::{RustSetupContext, cargo::CargoProjectSetup};
 
 use crate::languages::python::{
     PythonPackageManager, PythonPackageManagerSetup, PythonSetupContext, uv::UvPackageManagerSetup,
@@ -62,7 +62,7 @@ pub(crate) struct RustSetup;
 
 impl LanguageSetup for RustSetup {
     fn setup(&self, ctx: LanguageSetupContext) -> Result<()> {
-        run_rust_setup(ctx, &CargoPackageManagerSetup)
+        run_rust_setup(ctx, &CargoProjectSetup)
     }
 }
 
@@ -78,9 +78,10 @@ where
 
 fn run_rust_setup<P>(language_ctx: LanguageSetupContext, package_manager: &P) -> Result<()>
 where
-    P: RustPackageManagerSetup,
+    P: RustProjectSetup,
 {
     let rust_ctx = RustSetupContext::from(language_ctx);
-    package_manager.setup(rust_ctx)?;
+    let plan = rust::project::plan::resolve_rust_setup_plan(&rust_ctx)?;
+    package_manager.setup(rust_ctx, plan)?;
     Ok(())
 }

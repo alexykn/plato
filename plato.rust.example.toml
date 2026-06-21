@@ -66,8 +66,13 @@ crate_dir = { path = "crate-template", replace = "{{ rust_package_name }}" }
 # Rust Setup
 # ------------------------------------------------------------------------------
 [rust]
-# Rust toolchain passed to Cargo commands, e.g. `cargo +stable build`.
+# Rust toolchain installed with rustup and passed to Cargo commands, e.g.
+# `cargo +stable build`.
 toolchain = "stable"
+
+# Optional rustup setup before Cargo commands.
+components = ["rustfmt", "clippy"]
+targets = []
 
 # Supported options: base | fetch | build
 project_scope = "base"

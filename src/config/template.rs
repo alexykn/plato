@@ -238,16 +238,33 @@ pub(crate) struct PipConfig {
     pub(crate) version_fallback: bool,
 }
 
-#[derive(Deserialize, Debug, Default, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 pub(crate) struct RustConfig {
     #[serde(default = "get_default_rust_toolchain")]
     pub(crate) toolchain: String,
+    #[serde(default)]
+    pub(crate) components: Vec<String>,
+    #[serde(default)]
+    pub(crate) targets: Vec<String>,
     #[serde(default)]
     pub(crate) project_scope: RustProjectScopeConfig,
     #[serde(default)]
     pub(crate) project_type: RustProjectTypeConfig,
     #[serde(default)]
     pub(crate) cargo_init: bool,
+}
+
+impl Default for RustConfig {
+    fn default() -> Self {
+        Self {
+            toolchain: get_default_rust_toolchain(),
+            components: Vec::new(),
+            targets: Vec::new(),
+            project_scope: RustProjectScopeConfig::default(),
+            project_type: RustProjectTypeConfig::default(),
+            cargo_init: false,
+        }
+    }
 }
 
 /// Loads template config from an explicit TOML path.

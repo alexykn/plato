@@ -209,6 +209,8 @@ version_fallback = false
 
 [rust]
 toolchain = "stable"
+components = []             # e.g. ["rustfmt", "clippy"]
+targets = []                # e.g. ["wasm32-unknown-unknown"]
 project_scope = "base"       # base | fetch | build
 project_type = "binary"      # binary | bin | library | lib
 cargo_init = false
@@ -238,6 +240,22 @@ dependency groups, invalid package layout, or missing README files. Plato still
 does not infer layouts, create dependency groups/extras, or rewrite package paths
 unless the template explicitly asks for that through rendering or
 `[path.replace]`.
+
+Rust setup is explicit too. Plato installs the configured toolchain with
+`rustup`, adds configured components/targets, and then runs only the selected
+Cargo setup scope.
+
+| Scope | Command shape |
+| --- | --- |
+| `base` | `rustup toolchain install <toolchain>` plus configured components/targets |
+| `fetch` | base setup + `cargo +<toolchain> fetch` |
+| `build` | base setup + `cargo +<toolchain> build` |
+
+When `cargo_init = true`, Plato runs `cargo +<toolchain> init --bin` or
+`cargo +<toolchain> init --lib` before the selected scope. Leave it `false` when
+the template owns `Cargo.toml` and the source layout. Plato does not generate
+`rust-toolchain.toml`; include it in the template if the project should commit
+one.
 
 ## Rendering Rules
 

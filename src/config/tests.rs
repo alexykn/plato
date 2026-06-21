@@ -210,6 +210,9 @@ fn defaults_python_to_uv_base_editable() {
 fn defaults_rust_to_base_binary() {
     let config: Config = toml::from_str("").unwrap();
 
+    assert_eq!(config.rust.toolchain, "stable");
+    assert!(config.rust.components.is_empty());
+    assert!(config.rust.targets.is_empty());
     assert!(matches!(
         config.rust.project_scope,
         RustProjectScopeConfig::Base
@@ -218,4 +221,31 @@ fn defaults_rust_to_base_binary() {
         config.rust.project_type,
         RustProjectTypeConfig::Binary
     ));
+}
+
+#[test]
+fn deserializes_rust_setup_config() {
+    let raw = r#"
+[rust]
+toolchain = "nightly"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]
+project_scope = "build"
+project_type = "library"
+cargo_init = true
+"#;
+    let config: Config = toml::from_str(raw).unwrap();
+
+    assert_eq!(config.rust.toolchain, "nightly");
+    assert_eq!(config.rust.components, ["rustfmt", "clippy"]);
+    assert_eq!(config.rust.targets, ["wasm32-unknown-unknown"]);
+    assert!(matches!(
+        config.rust.project_scope,
+        RustProjectScopeConfig::Build
+    ));
+    assert!(matches!(
+        config.rust.project_type,
+        RustProjectTypeConfig::Library
+    ));
+    assert!(config.rust.cargo_init);
 }
