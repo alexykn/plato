@@ -3,6 +3,7 @@ use std::env::current_dir;
 use std::path::PathBuf;
 
 pub(crate) mod config;
+pub(crate) mod context;
 pub(crate) mod fs;
 pub(crate) mod git;
 pub(crate) mod guard;
@@ -15,6 +16,8 @@ pub(crate) mod workspace;
 
 use crate::config::Config;
 use crate::config::TemplateLanguage;
+use crate::config::group::apply_group_configs;
+use crate::context::{ContextMap, ContextOverrides};
 use crate::git::{
     GitCommitLocalConfig, GitCoreConfig, GitInitialCommit, GitLocalConfig, GitSetupOptions,
     GitUserConfig, TempCheckout, setup_git_repository,
@@ -39,6 +42,9 @@ pub struct RunOptions {
     pub force: bool,
     pub rev: Option<String>,
     pub subpath: Option<PathBuf>,
+    pub groups: Vec<String>,
+    pub set_values: Vec<String>,
+    pub set_string_values: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -47,12 +53,16 @@ pub struct ValidateOptions {
     pub source: InitSource,
     pub rev: Option<String>,
     pub subpath: Option<PathBuf>,
+    pub groups: Vec<String>,
+    pub set_values: Vec<String>,
+    pub set_string_values: Vec<String>,
 }
 
 struct PreparedTemplateContext {
     project_name: String,
     source_path: PathBuf,
     config: Config,
+    context_overrides: ContextMap,
     source_cleanup: Option<TempCheckout>,
 }
 
@@ -62,6 +72,7 @@ struct ExecutionContext {
     source_path: PathBuf,
     target_path: PathBuf,
     config: Config,
+    context_overrides: ContextMap,
     _source_cleanup: Option<TempCheckout>,
 }
 
@@ -74,6 +85,9 @@ impl TryFrom<RunOptions> for ExecutionContext {
             options.project_name,
             options.rev,
             options.subpath,
+            options.groups,
+            options.set_values,
+            options.set_string_values,
         )?;
         let target_path = current_dir()?.join(&prepared.project_name);
         Ok(Self {
@@ -82,6 +96,7 @@ impl TryFrom<RunOptions> for ExecutionContext {
             source_path: prepared.source_path,
             target_path,
             config: prepared.config,
+            context_overrides: prepared.context_overrides,
             _source_cleanup: prepared.source_cleanup,
         })
     }
@@ -92,6 +107,9 @@ fn prepare_template_context(
     project_name: String,
     rev: Option<String>,
     subpath: Option<PathBuf>,
+    groups: Vec<String>,
+    set_values: Vec<String>,
+    set_string_values: Vec<String>,
 ) -> Result<PreparedTemplateContext> {
     let resolver = TemplateResolver::from_global_config()?;
     let prepared_source = match source {
@@ -112,10 +130,15 @@ fn prepare_template_context(
         }
     };
 
+    let mut config = prepared_source.config;
+    apply_group_configs(&mut config, &prepared_source.source_path, &groups)?;
+    let context_overrides = ContextOverrides::parse(&set_values, &set_string_values)?.into_values();
+
     Ok(PreparedTemplateContext {
         project_name,
         source_path: prepared_source.source_path,
-        config: prepared_source.config,
+        config,
+        context_overrides,
         source_cleanup: prepared_source.cleanup,
     })
 }
@@ -178,6 +201,9 @@ pub fn validate(options: ValidateOptions) -> Result<()> {
         options.project_name,
         options.rev,
         options.subpath,
+        options.groups,
+        options.set_values,
+        options.set_string_values,
     )?;
     let render_ctx = WorkspaceRenderContext::from(&prepared);
     render_workspace(&render_ctx)?;
@@ -227,8 +253,10 @@ impl From<&PreparedTemplateContext> for WorkspaceRenderContext {
             template_context: workspace::build_template_context_parts(
                 &ctx.project_name,
                 &ctx.config,
+                ctx.context_overrides.clone(),
             ),
             path_replacements: ctx.config.path.replace.clone(),
+            path_excludes: ctx.config.path.exclude.clone(),
             source_path: ctx.source_path.clone(),
         }
     }

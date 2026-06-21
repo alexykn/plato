@@ -21,6 +21,9 @@ pub(crate) fn run() -> anyhow::Result<()> {
                 force: args.force,
                 rev: args.rev,
                 subpath: args.subpath,
+                groups: args.groups,
+                set_values: args.set_values,
+                set_string_values: args.set_string_values,
             })
         }
         Commands::Val(args) => {
@@ -36,6 +39,9 @@ pub(crate) fn run() -> anyhow::Result<()> {
                 project_name,
                 rev: args.rev,
                 subpath: args.subpath,
+                groups: args.groups,
+                set_values: args.set_values,
+                set_string_values: args.set_string_values,
             })
         }
         Commands::Config { template_name } => plato::edit_config(&template_name),

@@ -3,9 +3,9 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::config::PathReplacementConfig;
+use crate::context::TemplateContext;
 use crate::fs::path::reject_parent_components;
 use crate::rendering::new_template_environment;
-use crate::workspace::TemplateContext;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SourcePathKind {
@@ -165,16 +165,22 @@ fn reject_overlapping_sources(rules: &[PathRewriteRule]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::workspace::TemplateContext;
-    use std::collections::HashMap;
+    use crate::context::TemplateContext;
+    use serde_json::Value;
 
     fn context() -> TemplateContext {
-        TemplateContext {
-            context: HashMap::from([
-                ("package_name".to_string(), "py3-requests".to_string()),
-                ("package_deps".to_string(), "deps-runtime".to_string()),
-            ]),
-        }
+        let mut context = TemplateContext::new();
+        context.merge(BTreeMap::from([
+            (
+                "package_name".to_string(),
+                Value::String("py3-requests".to_string()),
+            ),
+            (
+                "package_deps".to_string(),
+                Value::String("deps-runtime".to_string()),
+            ),
+        ]));
+        context
     }
 
     fn replacement(path: &str, replace: &str) -> PathReplacementConfig {

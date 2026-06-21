@@ -5,12 +5,12 @@ Plato is a local project scaffolding tool. It renders configured templates into 
 ## CLI
 
 ```bash
-plato init <template_name> <project_name> [--rev <rev>] [--subpath <path>] [--force]
-plato init --git <git_spec> <project_name> [--rev <rev>] [--subpath <path>] [--force]
-plato init --path <template_dir> <project_name> [--force]
-plato val <template_name> [project_name] [--rev <rev>] [--subpath <path>]
-plato val --git <git_spec> [project_name] [--rev <rev>] [--subpath <path>]
-plato val --path <template_dir> [project_name]
+plato init <template_name> <project_name> [--rev <rev>] [--subpath <path>] [--force] [-g <group>] [-s <key=value>] [--set-string <key=value>]
+plato init --git <git_spec> <project_name> [--rev <rev>] [--subpath <path>] [--force] [-g <group>] [-s <key=value>] [--set-string <key=value>]
+plato init --path <template_dir> <project_name> [--force] [-g <group>] [-s <key=value>] [--set-string <key=value>]
+plato val <template_name> [project_name] [--rev <rev>] [--subpath <path>] [-g <group>] [-s <key=value>] [--set-string <key=value>]
+plato val --git <git_spec> [project_name] [--rev <rev>] [--subpath <path>] [-g <group>] [-s <key=value>] [--set-string <key=value>]
+plato val --path <template_dir> [project_name] [-g <group>] [-s <key=value>] [--set-string <key=value>]
 plato config <template_name>
 plato list [-v|--verbose]
 ```
@@ -20,9 +20,10 @@ Examples:
 ```bash
 plato init py my-app
 plato init api my-api --rev main
+plato init api my-api -g docker -s port=8000
 plato init --git gitlab:group/templates/api my-api
 plato init --path ~/src/my-template demo
-plato val py
+plato val py -g docker -s docker=true
 plato config api
 plato list --verbose
 ```
@@ -154,6 +155,10 @@ template/config errors, such as invalid `plato.toml`, invalid path rewrite rules
 template syntax errors, duplicate rendered paths, and references to undefined
 template variables.
 
+Plato validates Plato mechanics only. It does not validate Python or Rust package
+metadata, workspace layout correctness, or whether `uv`, `pip`, or `cargo` setup
+will succeed.
+
 ## Template Configuration (`plato.toml`)
 
 A template may contain `plato.toml`. This file is configuration only and is not copied into the generated project.
@@ -184,12 +189,21 @@ initial_message = "Initial commit"
 # filemode = true
 
 [template.context]
-# arbitrary key-value pairs for path and file content templates
+# arbitrary typed values for path and file content templates
+# strings, booleans, numbers, arrays, and tables are supported
+# docker = false
+# port = 8000
+# features = ["api", "metrics"]
 
 [path.replace]
 # Named path rewrite rules. `path` must exactly match a relative path in the
 # template source tree. `replace` is rendered with MiniJinja before writing.
 # package = { path = "src/package-template", replace = "src/{{ project_snake }}" }
+
+[path.exclude]
+# Named path exclusion rules. Missing paths are ignored.
+# dockerfile = { path = "Dockerfile", unless = "docker" }
+# secret = { path = ".secret" }
 
 [python]
 language_version = "3"
@@ -253,6 +267,78 @@ When `cargo_init = true`, Plato runs `cargo +<toolchain> init --bin` or
 the template owns `Cargo.toml` and the source layout. Plato does not generate
 `rust-toolchain.toml`; include it in the template if the project should commit
 one.
+
+## Context Overrides and Groups
+
+Templates can receive typed context values from built-ins, `plato.toml`, selected
+groups, and CLI overrides. Precedence is:
+
+```text
+built-ins < [template.context] < selected groups in CLI order < -s/--set/--set-string
+```
+
+`-s`/`--set` infers scalar types and arrays:
+
+```bash
+plato init api my-api -s docker=true -s port=8000 -s 'features=[api,metrics]'
+plato init api my-api --set-string version=1.0
+```
+
+Inference rules:
+
+```text
+1000       -> integer
+100.0      -> float
+true/False -> boolean
+[a,1,true] -> array with inferred items
+other      -> string
+```
+
+Dotted keys create nested objects:
+
+```bash
+plato init api my-api -s author.name=Jane -s author.email=jane@example.com
+```
+
+Optional template groups use reserved root-level files named
+`plato.<group>.toml`:
+
+```text
+plato.toml
+plato.docker.toml
+plato.ci.toml
+```
+
+Select them with `-g`/`--group`:
+
+```bash
+plato init api my-api -g docker -g ci
+```
+
+Group files support only rendering/path-selection config:
+
+```toml
+# plato.docker.toml
+
+[template.context]
+docker = true
+docker_image = "api"
+
+[path.replace]
+dockerfile = { path = "Dockerfile.template", replace = "Dockerfile" }
+
+[path.exclude]
+compose = { path = "compose.dev.yml", unless = "docker" }
+```
+
+Groups may set `[template.context]`, `[path.replace]`, and `[path.exclude]`.
+They cannot change `[plato]`, `[python]`, `[rust]`, or `[git]` setup.
+`plato.toml` and root-level `plato.*.toml` files are never copied or rendered
+into the generated project.
+
+`[path.exclude]` removes files or directories from the in-memory workspace before
+path rewrites and rendering. Missing exclude paths are ignored. `unless` names a
+top-level context variable; the path is excluded unless that value is truthy.
 
 ## Rendering Rules
 

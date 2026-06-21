@@ -48,7 +48,7 @@ filemode = true
 # Template Rendering Context
 # ------------------------------------------------------------------------------
 [template.context]
-# Arbitrary string key-value pairs available to path and file content templates.
+# Arbitrary typed values available to path and file content templates.
 # Built-in generic keys include:
 # - project_name
 # - project_kebab
@@ -56,6 +56,7 @@ filemode = true
 # - project_pascal
 description = "Generated with Plato"
 license = "MIT"
+docker = false
 
 
 # ------------------------------------------------------------------------------
@@ -67,3 +68,12 @@ license = "MIT"
 #
 # Example: template directory `project-template/` becomes `{{ project_kebab }}/`.
 project = { path = "project-template", replace = "{{ project_kebab }}" }
+
+
+# ------------------------------------------------------------------------------
+# Path Excludes
+# ------------------------------------------------------------------------------
+[path.exclude]
+# Missing exclude paths are ignored. If `unless` is set, the path is excluded
+# unless the named top-level context value is truthy.
+dockerfile = { path = "Dockerfile", unless = "docker" }

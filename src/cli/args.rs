@@ -55,6 +55,18 @@ pub(crate) struct InitArgs {
     /// Subpath inside a remote repository to use as the template root
     #[arg(long)]
     pub(crate) subpath: Option<PathBuf>,
+
+    /// Apply an optional template group such as docker or ci
+    #[arg(short = 'g', long = "group")]
+    pub(crate) groups: Vec<String>,
+
+    /// Override template context with inferred value typing: key=value
+    #[arg(short = 's', long = "set")]
+    pub(crate) set_values: Vec<String>,
+
+    /// Override template context as a string: key=value
+    #[arg(long = "set-string")]
+    pub(crate) set_string_values: Vec<String>,
 }
 
 #[derive(Args, Debug)]
@@ -80,4 +92,63 @@ pub(crate) struct ValArgs {
     /// Subpath inside a remote repository to use as the template root
     #[arg(long)]
     pub(crate) subpath: Option<PathBuf>,
+
+    /// Apply an optional template group such as docker or ci
+    #[arg(short = 'g', long = "group")]
+    pub(crate) groups: Vec<String>,
+
+    /// Override template context with inferred value typing: key=value
+    #[arg(short = 's', long = "set")]
+    pub(crate) set_values: Vec<String>,
+
+    /// Override template context as a string: key=value
+    #[arg(long = "set-string")]
+    pub(crate) set_string_values: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_group_and_set_shorthands_for_init() {
+        let cli = Cli::parse_from([
+            "plato",
+            "init",
+            "py-api",
+            "my-api",
+            "-g",
+            "docker",
+            "-s",
+            "port=8000",
+            "--set-string",
+            "version=1.0",
+        ]);
+
+        let Commands::Init(args) = cli.command else {
+            panic!("expected init command");
+        };
+        assert_eq!(args.groups, ["docker"]);
+        assert_eq!(args.set_values, ["port=8000"]);
+        assert_eq!(args.set_string_values, ["version=1.0"]);
+    }
+
+    #[test]
+    fn parses_group_and_set_shorthands_for_validation() {
+        let cli = Cli::parse_from([
+            "plato",
+            "val",
+            "py-api",
+            "-g",
+            "docker",
+            "-s",
+            "docker=true",
+        ]);
+
+        let Commands::Val(args) = cli.command else {
+            panic!("expected val command");
+        };
+        assert_eq!(args.groups, ["docker"]);
+        assert_eq!(args.set_values, ["docker=true"]);
+    }
 }

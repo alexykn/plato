@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
-use std::collections::{BTreeMap, HashMap};
+use serde_json::Value;
+use std::collections::BTreeMap;
 use std::fs::read_to_string;
 use std::path::{Path, PathBuf};
 
@@ -94,19 +95,37 @@ pub(crate) struct PlatoConfig {
 #[derive(Deserialize, Debug, Default, Clone)]
 pub(crate) struct TemplateConfig {
     #[serde(default)]
-    pub(crate) context: HashMap<String, String>,
+    pub(crate) context: BTreeMap<String, Value>,
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]
 pub(crate) struct PathConfig {
     #[serde(default)]
     pub(crate) replace: BTreeMap<String, PathReplacementConfig>,
+    #[serde(default)]
+    pub(crate) exclude: BTreeMap<String, PathExcludeConfig>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
 pub(crate) struct PathReplacementConfig {
     pub(crate) path: PathBuf,
     pub(crate) replace: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub(crate) struct PathExcludeConfig {
+    pub(crate) path: PathBuf,
+    #[serde(default)]
+    pub(crate) unless: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Default, Clone)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct GroupConfig {
+    #[serde(default)]
+    pub(crate) template: TemplateConfig,
+    #[serde(default)]
+    pub(crate) path: PathConfig,
 }
 
 fn get_default_initial_commit_message() -> String {

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use crate::context::TemplateContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProjectNameSet {
@@ -20,11 +20,11 @@ impl ProjectNameSet {
         }
     }
 
-    pub(crate) fn insert_context(&self, context: &mut HashMap<String, String>) {
-        context.insert("project_name".to_string(), self.raw.clone());
-        context.insert("project_kebab".to_string(), self.kebab.clone());
-        context.insert("project_snake".to_string(), self.snake.clone());
-        context.insert("project_pascal".to_string(), self.pascal.clone());
+    pub(crate) fn insert_context(&self, context: &mut TemplateContext) {
+        context.insert_string("project_name", self.raw.clone());
+        context.insert_string("project_kebab", self.kebab.clone());
+        context.insert_string("project_snake", self.snake.clone());
+        context.insert_string("project_pascal", self.pascal.clone());
     }
 }
 
@@ -44,13 +44,10 @@ impl PythonNameSet {
         }
     }
 
-    pub(crate) fn insert_context(&self, context: &mut HashMap<String, String>) {
-        context.insert(
-            "python_distribution_name".to_string(),
-            self.distribution.clone(),
-        );
-        context.insert("python_package_name".to_string(), self.package.clone());
-        context.insert("python_cli_name".to_string(), self.cli.clone());
+    pub(crate) fn insert_context(&self, context: &mut TemplateContext) {
+        context.insert_string("python_distribution_name", self.distribution.clone());
+        context.insert_string("python_package_name", self.package.clone());
+        context.insert_string("python_cli_name", self.cli.clone());
     }
 }
 
@@ -70,10 +67,10 @@ impl RustNameSet {
         }
     }
 
-    pub(crate) fn insert_context(&self, context: &mut HashMap<String, String>) {
-        context.insert("rust_package_name".to_string(), self.package.clone());
-        context.insert("rust_crate_name".to_string(), self.crate_identifier.clone());
-        context.insert("rust_binary_name".to_string(), self.binary.clone());
+    pub(crate) fn insert_context(&self, context: &mut TemplateContext) {
+        context.insert_string("rust_package_name", self.package.clone());
+        context.insert_string("rust_crate_name", self.crate_identifier.clone());
+        context.insert_string("rust_binary_name", self.binary.clone());
     }
 }
 

@@ -7,10 +7,11 @@ use std::rc::Rc;
 use std::sync::OnceLock;
 use walkdir::WalkDir;
 
-use crate::config::PathReplacementConfig;
+use crate::config::{PathExcludeConfig, PathReplacementConfig};
+use crate::context::TemplateContext;
 use crate::rendering::new_template_environment;
-use crate::workspace::TemplateContext;
 use crate::workspace::content::FileContent;
+use crate::workspace::path_exclude::apply_path_excludes;
 use crate::workspace::path_rewrite::{PathRewritePlan, SourcePathEntry, SourcePathKind};
 use crate::workspace::rendered::RenderedWorkspace;
 
@@ -43,10 +44,7 @@ impl WorkspaceBuilder {
             if rel_path.as_os_str().is_empty() {
                 continue;
             }
-            if matches!(
-                path.file_name().and_then(|name| name.to_str()),
-                Some("plato.toml")
-            ) {
+            if is_reserved_plato_config_path(&rel_path) {
                 continue;
             }
             let content = if path.is_dir() {
@@ -68,6 +66,16 @@ impl WorkspaceBuilder {
             raw_map.insert(rel_path, content);
         }
         Ok(Self { content: raw_map })
+    }
+
+    pub(crate) fn exclude_paths(
+        mut self,
+        context: &TemplateContext,
+        path_excludes: &BTreeMap<String, PathExcludeConfig>,
+    ) -> Result<Self> {
+        apply_path_excludes(&mut self.content, context, path_excludes)?;
+        deduplicate_dirmap(&mut self.content);
+        Ok(self)
     }
 
     pub(crate) fn rewrite_paths(
@@ -141,5 +149,39 @@ impl WorkspaceBuilder {
 
     pub(crate) fn build(self) -> RenderedWorkspace {
         RenderedWorkspace::new(self.content)
+    }
+}
+
+fn is_reserved_plato_config_path(rel_path: &Path) -> bool {
+    if rel_path
+        .parent()
+        .is_some_and(|parent| !parent.as_os_str().is_empty())
+    {
+        return false;
+    }
+    let Some(file_name) = rel_path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    file_name == "plato.toml" || (file_name.starts_with("plato.") && file_name.ends_with(".toml"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn identifies_root_plato_config_files_as_reserved() {
+        assert!(is_reserved_plato_config_path(Path::new("plato.toml")));
+        assert!(is_reserved_plato_config_path(Path::new(
+            "plato.docker.toml"
+        )));
+    }
+
+    #[test]
+    fn does_not_reserve_nested_or_non_config_files() {
+        assert!(!is_reserved_plato_config_path(Path::new(
+            "groups/plato.docker.toml"
+        )));
+        assert!(!is_reserved_plato_config_path(Path::new("plato.template")));
     }
 }

@@ -9,7 +9,7 @@
 [plato]
 # Python templates receive generic project_* values and Python-specific derived
 # values such as python_distribution_name, python_package_name, python_cli_name,
-# and python_package_dir.
+# language_version.
 #
 # Supported options: "python" or "py"
 template_language = "python"
@@ -49,9 +49,10 @@ filemode = true
 # Template Rendering Context
 # ------------------------------------------------------------------------------
 [template.context]
-# Arbitrary string key-value pairs available to path and file content templates.
+# Arbitrary typed values available to path and file content templates.
 description = "Generated with Plato"
 license = "MIT"
+docker = false
 
 
 # ------------------------------------------------------------------------------
@@ -61,6 +62,15 @@ license = "MIT"
 # Named path rewrite rules. `path` must exactly match a relative path in the
 # template source tree. `replace` is rendered with MiniJinja before writing.
 package = { path = "src/package-template", replace = "src/{{ python_package_name }}" }
+
+
+# ------------------------------------------------------------------------------
+# Path Excludes
+# ------------------------------------------------------------------------------
+[path.exclude]
+# Missing exclude paths are ignored. If `unless` is set, the path is excluded
+# unless the named top-level context value is truthy.
+dockerfile = { path = "Dockerfile", unless = "docker" }
 
 
 # ------------------------------------------------------------------------------
