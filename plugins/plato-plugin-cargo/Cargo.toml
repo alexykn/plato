@@ -1,0 +1,17 @@
+[package]
+name = "plato-plugin-cargo"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "plato-plugin-cargo"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+plato-plugin-api = { path = "../../crates/plato-plugin-api" }
+plato-plugin-support = { path = "../../crates/plato-plugin-support" }

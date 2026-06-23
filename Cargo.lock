@@ -334,12 +334,99 @@ dependencies = [
  "fs_extra",
  "home",
  "minijinja",
+ "plato-plugin-api",
  "regex",
  "serde",
  "serde_json",
  "shell-words",
  "toml",
  "walkdir",
+]
+
+[[package]]
+name = "plato-plugin-api"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "plato-plugin-cargo"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "plato-plugin-api",
+ "plato-plugin-support",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "plato-plugin-git"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "plato-plugin-api",
+ "plato-plugin-support",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "plato-plugin-pip"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "plato-plugin-api",
+ "plato-plugin-support",
+ "serde",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
+name = "plato-plugin-pnpm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "plato-plugin-api",
+ "plato-plugin-support",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "plato-plugin-precommit"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "plato-plugin-api",
+ "plato-plugin-support",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "plato-plugin-support"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "plato-plugin-api",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "plato-plugin-uv"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "plato-plugin-api",
+ "plato-plugin-support",
+ "serde",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]

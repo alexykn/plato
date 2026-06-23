@@ -1,0 +1,43 @@
+use anyhow::Context;
+use plato_plugin_api::{PluginCapability, PluginMetadata, PluginSetupRequest, PluginSetupResponse};
+use plato_plugin_support::{SetupPlugin, command::run_command, run};
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct PnpmConfig {
+    #[serde(default)]
+    install: bool,
+    #[serde(default)]
+    frozen_lockfile: bool,
+}
+struct PnpmPlugin;
+impl SetupPlugin for PnpmPlugin {
+    fn metadata(&self) -> PluginMetadata {
+        metadata("pnpm", "Sets up pnpm projects")
+    }
+    fn setup(&self, request: PluginSetupRequest) -> anyhow::Result<PluginSetupResponse> {
+        let config: PnpmConfig =
+            serde_json::from_value(request.config).context("Invalid pnpm plugin config")?;
+        if config.install {
+            let mut args = vec!["install".to_string()];
+            if config.frozen_lockfile {
+                args.push("--frozen-lockfile".to_string());
+            }
+            run_command("pnpm", args, &request.workdir)?;
+        }
+        Ok(PluginSetupResponse::success("pnpm setup complete"))
+    }
+}
+fn metadata(name: &str, description: &str) -> PluginMetadata {
+    PluginMetadata {
+        name: name.to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        supported_api_versions: vec![1],
+        capabilities: vec![PluginCapability::Setup],
+        description: Some(description.to_string()),
+    }
+}
+fn main() -> std::process::ExitCode {
+    run(PnpmPlugin)
+}
