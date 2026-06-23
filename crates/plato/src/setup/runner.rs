@@ -8,6 +8,8 @@ use crate::plugins::command::{read_metadata, run_setup};
 use crate::plugins::discovery::resolve_plugin_command;
 use crate::setup::plan::SetupPlan;
 
+const DEFAULT_PLUGIN_METADATA_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
 #[derive(Debug, Clone)]
 pub(crate) struct SetupRunnerContext {
     pub(crate) project_name: String,
@@ -21,7 +23,7 @@ pub(crate) struct SetupRunnerContext {
 pub(crate) fn run_setup_plan(
     global_config: &GlobalConfig,
     plan: &SetupPlan,
-    ctx: SetupRunnerContext,
+    ctx: &SetupRunnerContext,
 ) -> Result<()> {
     for step in &plan.steps {
         let plugin_command = resolve_plugin_command(global_config, &step.plugin)?;
@@ -33,7 +35,7 @@ pub(crate) fn run_setup_plan(
                 plugin_command.command.display()
             );
         }
-        let metadata = read_metadata(&plugin_command.command)
+        let metadata = read_metadata(&plugin_command.command, DEFAULT_PLUGIN_METADATA_TIMEOUT)
             .with_context(|| format!("Failed to read metadata for plugin {}", step.plugin))?;
         let request = PluginSetupRequest {
             api_version: PLUGIN_API_VERSION,
@@ -48,6 +50,7 @@ pub(crate) fn run_setup_plan(
             options: PluginOptions {
                 dry_run: ctx.dry_run,
                 verbose: ctx.verbose,
+                timeout_secs: Some(step.timeout.as_secs()),
             },
             environment: PluginEnvironment {
                 plato_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -55,7 +58,7 @@ pub(crate) fn run_setup_plan(
                 arch: std::env::consts::ARCH.to_string(),
             },
         };
-        let response = run_setup(&plugin_command.command, &request)
+        let response = run_setup(&plugin_command.command, &request, step.timeout)
             .with_context(|| format!("Failed to run plugin {}", metadata.name))?;
         for message in response.messages {
             println!("{message}");

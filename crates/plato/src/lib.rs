@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use std::env::current_dir;
 use std::path::PathBuf;
 
@@ -24,7 +24,7 @@ use crate::setup::runner::{SetupRunnerContext, run_setup_plan};
 use crate::source::TemplateRequest;
 use crate::source::TemplateResolver;
 use crate::source::git::TempCheckout;
-use crate::util::{bail_if_target_path_exists, open_config_file};
+use crate::util::{open_config_file, validate_target_path};
 use crate::workspace::{WorkspaceRenderContext, render_workspace};
 
 #[derive(Clone, Debug)]
@@ -91,19 +91,29 @@ impl TryFrom<RunOptions> for ExecutionContext {
     type Error = anyhow::Error;
 
     fn try_from(options: RunOptions) -> Result<Self, Self::Error> {
+        let RunOptions {
+            project_name,
+            source,
+            force,
+            rev,
+            subpath,
+            groups,
+            set_values,
+            set_string_values,
+        } = options;
         let prepared = prepare_template_context(
-            options.source,
-            options.project_name,
-            options.rev,
-            options.subpath,
-            options.groups,
-            options.set_values,
-            options.set_string_values,
+            source,
+            project_name,
+            rev,
+            subpath,
+            &groups,
+            &set_values,
+            &set_string_values,
         )?;
-        let target_path = current_dir()?.join(&prepared.project_name);
+        let target_path = target_path_for_project(&prepared.project_name)?;
         Ok(Self {
             project_name: prepared.project_name,
-            force: options.force,
+            force,
             source_path: prepared.source_path,
             target_path,
             config: prepared.config,
@@ -113,14 +123,34 @@ impl TryFrom<RunOptions> for ExecutionContext {
     }
 }
 
+fn target_path_for_project(project_name: &str) -> Result<PathBuf> {
+    Ok(current_dir()?.join(project_name))
+}
+
+fn validate_setup_sources(
+    setup_plan: &SetupPlan,
+    rendered: &workspace::rendered::RenderedWorkspace,
+) -> Result<()> {
+    for step in &setup_plan.steps {
+        if !rendered.contains_directory(&step.source_path) {
+            bail!(
+                "Setup step for plugin {} uses source_path {}, but that directory is not rendered",
+                step.plugin,
+                step.source_path.display()
+            );
+        }
+    }
+    Ok(())
+}
+
 fn prepare_template_context(
     source: InitSource,
     project_name: String,
     rev: Option<String>,
     subpath: Option<PathBuf>,
-    groups: Vec<String>,
-    set_values: Vec<String>,
-    set_string_values: Vec<String>,
+    groups: &[String],
+    set_values: &[String],
+    set_string_values: &[String],
 ) -> Result<PreparedTemplateContext> {
     let resolver = TemplateResolver::from_global_config()?;
     let prepared_source = match source {
@@ -142,8 +172,8 @@ fn prepare_template_context(
     };
 
     let mut config = prepared_source.config;
-    apply_group_configs(&mut config, &prepared_source.source_path, &groups)?;
-    let context_overrides = ContextOverrides::parse(&set_values, &set_string_values)?.into_values();
+    apply_group_configs(&mut config, &prepared_source.source_path, groups)?;
+    let context_overrides = ContextOverrides::parse(set_values, set_string_values)?.into_values();
 
     Ok(PreparedTemplateContext {
         project_name,
@@ -182,20 +212,21 @@ pub fn display_templates(verbose: bool) -> Result<()> {
 /// template rendering, or project setup fails.
 pub fn run(options: RunOptions) -> Result<()> {
     let exec_ctx = ExecutionContext::try_from(options)?;
-    bail_if_target_path_exists(&exec_ctx.target_path, exec_ctx.force)?;
+    let target_state = validate_target_path(&exec_ctx.target_path, exec_ctx.force)?;
 
     let render_ctx = WorkspaceRenderContext::from(&exec_ctx);
     let rendered = render_workspace(&render_ctx)?;
     let setup_plan = SetupPlan::from_config(&exec_ctx.config, &exec_ctx.target_path)?;
+    validate_setup_sources(&setup_plan, &rendered)?;
     let global_config = load_global_config()?;
 
-    let mut guard = ProjectGuard::new(exec_ctx.target_path.clone());
+    let mut guard = ProjectGuard::new(exec_ctx.target_path.clone(), target_state.cleanup_policy());
     std::fs::create_dir_all(&exec_ctx.target_path)?;
     rendered.flush_to_disk(&exec_ctx.target_path)?;
     run_setup_plan(
         &global_config,
         &setup_plan,
-        SetupRunnerContext {
+        &SetupRunnerContext {
             project_name: exec_ctx.project_name.clone(),
             target_path: exec_ctx.target_path.clone(),
             template_path: exec_ctx.source_path.clone(),
@@ -211,35 +242,65 @@ pub fn run(options: RunOptions) -> Result<()> {
 /// Validate a template without writing a project or running setup commands.
 ///
 /// # Errors
-/// Returns an error if source resolution or rendering fails.
+/// Returns an error if source resolution, rendering, or setup-plan validation fails.
 pub fn validate(options: ValidateOptions) -> Result<()> {
+    let ValidateOptions {
+        project_name,
+        source,
+        rev,
+        subpath,
+        groups,
+        set_values,
+        set_string_values,
+    } = options;
     let prepared = prepare_template_context(
-        options.source,
-        options.project_name,
-        options.rev,
-        options.subpath,
-        options.groups,
-        options.set_values,
-        options.set_string_values,
+        source,
+        project_name,
+        rev,
+        subpath,
+        &groups,
+        &set_values,
+        &set_string_values,
     )?;
     let render_ctx = WorkspaceRenderContext::from(&prepared);
-    render_workspace(&render_ctx)?;
+    let rendered = render_workspace(&render_ctx)?;
+    let target_path = target_path_for_project(&prepared.project_name)?;
+    let setup_plan = SetupPlan::from_config(&prepared.config, &target_path)?;
+    validate_setup_sources(&setup_plan, &rendered)?;
     println!("Validation passed.");
     Ok(())
 }
 
+/// Installs a setup plugin.
+///
+/// # Errors
+/// Returns an error if plugin installation fails for the selected backend.
 pub fn install_plugin(options: PluginInstallOptions) -> Result<()> {
-    plugins::install::install_plugin(&options.name, options.backend)
+    let PluginInstallOptions { name, backend } = options;
+    plugins::install::install_plugin(&name, backend)
 }
 
+/// Registers an explicit plugin executable in global config.
+///
+/// # Errors
+/// Returns an error if global config cannot be updated or the plugin name is invalid.
 pub fn register_plugin(options: PluginRegisterOptions) -> Result<()> {
-    plugins::registry::register_plugin(&options.name, &options.command)
+    let PluginRegisterOptions { name, command } = options;
+    plugins::registry::register_plugin(&name, &command)
 }
 
+/// Removes an explicit plugin registry entry from global config.
+///
+/// # Errors
+/// Returns an error if global config cannot be updated or the plugin name is invalid.
 pub fn remove_plugin(name: &str) -> Result<()> {
     plugins::registry::remove_plugin(name)
 }
 
+/// Displays discovered and registered plugins.
+///
+/// # Errors
+/// Returns an error if global config or the managed plugin directory cannot be read.
 pub fn display_plugins() -> Result<()> {
     let global_config = load_global_config()?;
     for (name, entry) in &global_config.plugin_registry {

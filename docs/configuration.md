@@ -95,12 +95,14 @@ Setup steps run after the rendered project has been written to disk.
 [[setup.steps]]
 plugin = "uv"
 source_path = "backend"
+timeout_secs = 600
 ```
 
 Fields:
 
 - `plugin`: plugin name; Plato resolves `uv` to `plato-plugin-uv`.
-- `source_path`: optional relative path inside the generated project. Defaults to `.`.
+- `source_path`: optional relative path inside the generated project. Defaults to `.`. The directory must exist in the rendered workspace.
+- `timeout_secs`: optional plugin setup timeout. Defaults to 600 seconds. Must be greater than zero.
 - any other keys: plugin config overrides for this step.
 
 Merge rule:
@@ -156,7 +158,7 @@ Setup steps from groups are appended in CLI order.
 
 ## Rendering rules
 
-Files ending in `.j2` or `.mj` are rendered with MiniJinja and written without that extension. Non-template files are copied as bytes.
+Files ending in `.j2` or `.mj` are rendered with MiniJinja and written without that extension. Non-template files are copied as bytes. Symlinks inside templates are rejected for safety.
 
 Plato also registers Ansible-style regex filters:
 

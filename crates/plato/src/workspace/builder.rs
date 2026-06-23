@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::read_to_string;
@@ -35,10 +35,13 @@ pub(crate) struct WorkspaceBuilder {
 impl WorkspaceBuilder {
     pub(crate) fn from_source(source_path: &Path) -> Result<Self> {
         let mut raw_map = HashMap::new();
-        for entry in WalkDir::new(source_path)
-            .into_iter()
-            .filter_map(std::result::Result::ok)
-        {
+        for entry in WalkDir::new(source_path) {
+            let entry = entry.with_context(|| {
+                format!(
+                    "Failed to read template entry under {}",
+                    source_path.display()
+                )
+            })?;
             let path = entry.path();
             let rel_path = path.strip_prefix(source_path)?.to_path_buf();
             if rel_path.as_os_str().is_empty() {
@@ -47,7 +50,11 @@ impl WorkspaceBuilder {
             if is_reserved_plato_config_path(&rel_path) {
                 continue;
             }
-            let content = if path.is_dir() {
+            let file_type = entry.file_type();
+            if file_type.is_symlink() {
+                bail!("Template contains unsupported symlink: {}", path.display());
+            }
+            let content = if file_type.is_dir() {
                 FileContent::None
             } else {
                 match path.extension().and_then(|s| s.to_str()) {
@@ -162,7 +169,11 @@ fn is_reserved_plato_config_path(rel_path: &Path) -> bool {
     let Some(file_name) = rel_path.file_name().and_then(|name| name.to_str()) else {
         return false;
     };
-    file_name == "plato.toml" || (file_name.starts_with("plato.") && file_name.ends_with(".toml"))
+    file_name == "plato.toml"
+        || (file_name.starts_with("plato.")
+            && Path::new(file_name)
+                .extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("toml")))
 }
 
 #[cfg(test)]

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::time::Duration;
 
 pub const PLUGIN_API_VERSION: u16 = 1;
 
@@ -44,6 +45,14 @@ pub struct PluginSetupRequest {
 pub struct PluginOptions {
     pub dry_run: bool,
     pub verbose: bool,
+    #[serde(default)]
+    pub timeout_secs: Option<u64>,
+}
+
+impl PluginOptions {
+    pub fn timeout(&self) -> Option<Duration> {
+        self.timeout_secs.map(Duration::from_secs)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -66,6 +66,8 @@ pub(crate) struct SetupStepConfig {
     pub(crate) plugin: String,
     #[serde(default = "default_source_path")]
     pub(crate) source_path: PathBuf,
+    #[serde(default)]
+    pub(crate) timeout_secs: Option<u64>,
     #[serde(flatten)]
     pub(crate) config_overrides: BTreeMap<String, TomlValue>,
 }

@@ -85,6 +85,7 @@ More complete examples live in [`docs/examples/`](docs/examples/).
 ## Core concepts
 
 - **Templates** are normal directories. Files ending in `.j2` or `.mj` are rendered and written without that extension.
+- **Symlinks** inside templates are rejected for safety.
 - **Template context** provides project name variants such as `project_name`, `project_kebab`, `project_snake`, and `project_pascal`.
 - **Path rewrites/excludes** are core rendering behavior and happen before template contents are rendered.
 - **Plugins** are external executables named `plato-plugin-<name>` that run after the rendered project is written.
@@ -130,7 +131,7 @@ Supported Git specs include provider shorthand, SSH remotes, SCP-like SSH syntax
 
 ## Validation
 
-`plato val` validates Plato rendering mechanics without creating a project or running setup plugins. It catches invalid config, template syntax errors, invalid path rewrites, duplicate rendered paths, and undefined template variables.
+`plato val` validates Plato rendering mechanics without creating a project or running setup plugins. It catches invalid config, template syntax errors, invalid path rewrites, duplicate rendered paths, undefined template variables, invalid setup-step structure, and setup `source_path` directories that are not rendered.
 
 It does not prove that setup tools such as `uv`, `pip`, `cargo`, `pnpm`, or `git` will succeed. Use `plato init` in a temporary directory for full setup smoke tests.
 
