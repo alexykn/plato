@@ -1,6 +1,29 @@
+# NOTE: When used as the real template config at a template root, this file
+# must be named plato.toml. Files in docs/examples/ are documentation copies.
+#
+# Python project using pip.
+#
+# This example creates a venv and installs dependencies from requirements.txt.
+# If requirements.txt is missing, the pip plugin can derive a temporary
+# .plato/requirements.txt from pyproject.toml dependencies.
+
+[template.context]
+author = "Jane Doe"
+package_summary = "Example pip-based project"
+
+[path.exclude]
+# Only include Docker files when the template context enables them.
+docker = { path = "Dockerfile", unless = "include_docker" }
+
 [plugins.pip]
 python = "3.12"
 scope = "requirements" # base | install | requirements
 
+[plugins.git]
+init = true
+
 [[setup.steps]]
 plugin = "pip"
+
+[[setup.steps]]
+plugin = "git"

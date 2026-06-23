@@ -1,5 +1,23 @@
+# NOTE: When used as the real template config at a template root, this file
+# must be named plato.toml. Files in docs/examples/ are documentation copies.
+#
+# Project using pre-commit hooks.
+#
+# pre-commit installs hooks into .git, so run the git plugin before the
+# precommit plugin. The template should include .pre-commit-config.yaml.
+
+[template.context]
+use_precommit = true
+
+[plugins.git]
+init = true
+initial_branch = "main"
+
 [plugins.precommit]
 install_hooks = true
+
+[[setup.steps]]
+plugin = "git"
 
 [[setup.steps]]
 plugin = "precommit"

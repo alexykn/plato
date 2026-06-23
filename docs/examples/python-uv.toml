@@ -1,11 +1,32 @@
+# NOTE: When used as the real template config at a template root, this file
+# must be named plato.toml. Files in docs/examples/ are documentation copies.
+#
+# Python project using uv.
+#
+# This example renders project metadata, rewrites a placeholder package path,
+# creates a Python 3.12 virtualenv, installs the generated package in editable
+# mode, and initializes a Git repository.
+
+[template.context]
+author = "Jane Doe"
+author_email = "jane@example.com"
+license = "MIT"
+
+[path.replace]
+# Template contains src/project_name/... and generated projects should use the
+# normalized Python package name derived from the requested project name.
+package_init = { path = "src/project_name/__init__.py", replace = "src/{{ project_snake }}/__init__.py" }
+package_main = { path = "src/project_name/main.py", replace = "src/{{ project_snake }}/main.py" }
+
 [plugins.uv]
 python = "3.12"
 scope = "install"      # base | install | requirements
 setup = "editable"     # editable | sync
-extras = ["cli"]
+extras = ["cli"]       # installed as .[cli] for editable installs
 
 [plugins.git]
 init = true
+initial_branch = "main"
 
 [[setup.steps]]
 plugin = "uv"

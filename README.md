@@ -98,6 +98,8 @@ Global configuration lives at:
 ~/.config/plato/config.toml
 ```
 
+See [config.example.toml](config.example.toml) for a complete global configuration example.
+
 Minimal example:
 
 ```toml

@@ -1,6 +1,32 @@
+# NOTE: When used as the real template config at a template root, this file
+# must be named plato.toml. Files in docs/examples/ are documentation copies.
+#
+# Ansible role template with Git initialization.
+#
+# This example renders role metadata, optionally excludes CI files, and creates
+# a Git repository for the generated role.
+
+[template.context]
+author = "Jane Doe"
+company = "Example Corp"
+role_namespace = "example"
+include_ci = true
+
+[path.exclude]
+gitlab_ci = { path = ".gitlab-ci.yml", unless = "include_ci" }
+
 [plugins.git]
 init = true
 initial_branch = "main"
+
+[plugins.git.user]
+# Optional local repository identity. Omit to use global Git config.
+# name = "Jane Doe"
+# email = "jane@example.com"
+
+[plugins.git.commit]
+# Optional local commit signing setting.
+# gpgsign = true
 
 [[setup.steps]]
 plugin = "git"

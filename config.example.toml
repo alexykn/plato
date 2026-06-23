@@ -1,8 +1,9 @@
 # ==============================================================================
 # Plato Global Configuration Example (config.toml)
 #
-# Save this file as ~/.config/plato/config.toml to customize global template
-# settings, remote Git providers, and explicit template mappings.
+# Save this file as ~/.config/plato/config.toml to configure named templates,
+# remote Git provider defaults, optional template config overrides, and explicit
+# plugin registry entries.
 # ==============================================================================
 
 [plato]
@@ -37,30 +38,44 @@ bitbucket = "bitbucket.company.test"
 # When configured here, you can run: `plato init <name> <project_name>`.
 [templates]
 
-# 1. Local Path Template
-# Resolves directly to a template directory on your local machine.
-# Tilde expansion (~) is supported.
-local_python = { path = "~/templates/py-base" }
+# Local path template. Tilde expansion (~) is supported.
+python312 = { path = "~/.config/plato/templates/python312" }
 
-# 2. Provider Remote Git Template
-# Uses the selected provider host and normalizes to an SSH remote.
-# Example below translates to: git@gitlab.com:development/api-boilerplate.git
+# Provider remote Git template. Provider shorthand normalizes to an SSH remote.
+# Example below resolves to git@gitlab.company.test:development/api-boilerplate.git
 team_api = { git = "gitlab:development/api-boilerplate" }
 
-# 3. Detailed Remote Git Template
-# Allows checking out a specific branch/tag/commit revision and using a nested
-# subdirectory within a repository.
+# Remote Git template pinned to a revision and nested subdirectory.
 axum_service = { git = "github:rust-guild/microservices-monorepo", rev = "v2.1.0", subpath = "templates/axum-service" }
 
-# 4. Custom SSH Git Template
+# Custom SSH Git remote.
 custom_git = { git = "git@git.company.test:templates/rust-base.git", rev = "main" }
 
 
 # ------------------------------------------------------------------------------
 # Template Configuration Overrides
 # ------------------------------------------------------------------------------
-# This table maps template names to external template config files.
-# Overrides win over source plato.toml files.
+# Optional external plato.toml files for configured templates.
+#
+# Overrides win over source-local plato.toml files. This is useful for remote
+# templates whose repository should not contain your local/private config.
 [template_configs]
 team_api = "~/.config/plato/template_configs/team_api.toml"
 axum_service = "~/.config/plato/template_configs/axum_service.toml"
+
+
+# ------------------------------------------------------------------------------
+# Explicit Plugin Registry
+# ------------------------------------------------------------------------------
+# Usually you do not need this: Plato discovers plugins installed into its
+# managed plugin directory and plugins available on PATH.
+#
+# Use plugin_registry only when a plugin lives at a custom path or you want to
+# force a specific executable for a plugin name.
+[plugin_registry.uv]
+command = "~/.config/plato/plugins/bin/plato-plugin-uv"
+source = "cargo:plato-plugin-uv"
+
+[plugin_registry.custom]
+command = "/opt/plato/plugins/plato-plugin-custom"
+source = "manual"

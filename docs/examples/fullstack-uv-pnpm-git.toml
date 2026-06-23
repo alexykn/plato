@@ -1,3 +1,20 @@
+# NOTE: When used as the real template config at a template root, this file
+# must be named plato.toml. Files in docs/examples/ are documentation copies.
+#
+# Fullstack project with a Python backend, pnpm frontend, and Git.
+#
+# Setup steps run in order. source_path makes each plugin run in the relevant
+# generated subdirectory while Git runs at the project root.
+
+[template.context]
+service_name = "Example Service"
+include_frontend = true
+include_docs = true
+
+[path.exclude]
+frontend = { path = "frontend", unless = "include_frontend" }
+docs = { path = "docs", unless = "include_docs" }
+
 [plugins.uv]
 python = "3.12"
 scope = "install"

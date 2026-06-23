@@ -1,10 +1,33 @@
+# NOTE: When used as the real template config at a template root, this file
+# must be named plato.toml. Files in docs/examples/ are documentation copies.
+#
+# Rust project using cargo.
+#
+# This example assumes the template already contains Cargo.toml and source files.
+# The cargo plugin installs/checks the toolchain, adds components/targets, and
+# builds the rendered project.
+
+[template.context]
+crate_description = "Example Rust crate"
+
+[path.replace]
+# Example for templates that keep a placeholder module/file name.
+crate_module = { path = "src/project_name.rs", replace = "src/{{ project_snake }}.rs" }
+
 [plugins.cargo]
 toolchain = "stable"
 components = ["rustfmt", "clippy"]
 targets = []
 scope = "build"          # base | fetch | build
-cargo_init = false
-project_type = "binary"  # binary | library
+cargo_init = false        # set true only when the template does not include Cargo.toml
+project_type = "binary"  # binary | library, used only when cargo_init = true
+
+[plugins.git]
+init = true
+initial_branch = "main"
 
 [[setup.steps]]
 plugin = "cargo"
+
+[[setup.steps]]
+plugin = "git"
