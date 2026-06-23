@@ -1,0 +1,24 @@
+[plugins.uv]
+python = "3.12"
+scope = "install"
+setup = "sync"
+groups = ["dev"]
+
+[plugins.pnpm]
+install = true
+frozen_lockfile = true
+
+[plugins.git]
+init = true
+initial_branch = "main"
+
+[[setup.steps]]
+plugin = "uv"
+source_path = "backend"
+
+[[setup.steps]]
+plugin = "pnpm"
+source_path = "frontend"
+
+[[setup.steps]]
+plugin = "git"

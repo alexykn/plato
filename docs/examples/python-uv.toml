@@ -1,0 +1,14 @@
+[plugins.uv]
+python = "3.12"
+scope = "install"      # base | install | requirements
+setup = "editable"     # editable | sync
+extras = ["cli"]
+
+[plugins.git]
+init = true
+
+[[setup.steps]]
+plugin = "uv"
+
+[[setup.steps]]
+plugin = "git"

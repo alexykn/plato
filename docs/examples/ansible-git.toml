@@ -1,0 +1,6 @@
+[plugins.git]
+init = true
+initial_branch = "main"
+
+[[setup.steps]]
+plugin = "git"

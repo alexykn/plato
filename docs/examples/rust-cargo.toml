@@ -1,0 +1,10 @@
+[plugins.cargo]
+toolchain = "stable"
+components = ["rustfmt", "clippy"]
+targets = []
+scope = "build"          # base | fetch | build
+cargo_init = false
+project_type = "binary"  # binary | library
+
+[[setup.steps]]
+plugin = "cargo"

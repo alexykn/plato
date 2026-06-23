@@ -1,0 +1,5 @@
+[plugins.precommit]
+install_hooks = true
+
+[[setup.steps]]
+plugin = "precommit"

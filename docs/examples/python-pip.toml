@@ -1,0 +1,6 @@
+[plugins.pip]
+python = "3.12"
+scope = "requirements" # base | install | requirements
+
+[[setup.steps]]
+plugin = "pip"
