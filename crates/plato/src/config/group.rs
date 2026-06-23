@@ -113,10 +113,10 @@ mod tests {
         .unwrap();
         fs::write(
             root.join("plato.override.toml"),
-            r#"
+            r"
             [template.context]
             port = 9000
-            "#,
+            ",
         )
         .unwrap();
 

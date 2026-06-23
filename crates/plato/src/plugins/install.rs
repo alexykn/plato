@@ -16,6 +16,11 @@ pub enum PluginInstallBackend {
     PipxPath { path: PathBuf },
 }
 
+/// Installs a plugin with the selected backend.
+///
+/// # Errors
+/// Returns an error if the plugin name is invalid, the managed plugin directory cannot be
+/// created, or the backend install command fails.
 pub fn install_plugin(name: &str, backend: PluginInstallBackend) -> Result<()> {
     match backend {
         PluginInstallBackend::Cargo => install_cargo(name),

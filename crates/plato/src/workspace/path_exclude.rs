@@ -9,16 +9,16 @@ use crate::fs::path::reject_parent_components;
 use crate::workspace::content::FileContent;
 
 pub(super) fn apply_path_excludes(
-    content: &mut HashMap<PathBuf, FileContent>,
-    context: &TemplateContext,
+    files: &mut HashMap<PathBuf, FileContent>,
+    template_context: &TemplateContext,
     excludes: &BTreeMap<String, PathExcludeConfig>,
 ) -> Result<()> {
     for (name, exclude) in excludes {
         validate_exclude_path(name, &exclude.path)?;
-        if should_keep(context, exclude)? {
+        if should_keep(template_context, exclude)? {
             continue;
         }
-        content.retain(|path, _| path != &exclude.path && !path.starts_with(&exclude.path));
+        files.retain(|path, _| path != &exclude.path && !path.starts_with(&exclude.path));
     }
     Ok(())
 }
@@ -112,14 +112,14 @@ mod tests {
 
     #[test]
     fn keeps_when_unless_variable_is_truthy() {
-        let mut content = content();
-        let mut context = TemplateContext::new();
-        context.merge(BTreeMap::from([("docker".to_string(), Value::Bool(true))]));
+        let mut files = content();
+        let mut template_context = TemplateContext::new();
+        template_context.merge(BTreeMap::from([("docker".to_string(), Value::Bool(true))]));
         let rules = BTreeMap::from([("docker".to_string(), exclude("Dockerfile", Some("docker")))]);
 
-        apply_path_excludes(&mut content, &context, &rules).unwrap();
+        apply_path_excludes(&mut files, &template_context, &rules).unwrap();
 
-        assert!(content.contains_key(Path::new("Dockerfile")));
+        assert!(files.contains_key(Path::new("Dockerfile")));
     }
 
     #[test]
