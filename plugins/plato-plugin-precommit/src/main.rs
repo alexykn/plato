@@ -1,6 +1,6 @@
 use anyhow::Context;
 use plato_plugin_api::{PluginCapability, PluginMetadata, PluginSetupRequest, PluginSetupResponse};
-use plato_plugin_support::{SetupPlugin, command::run_command, run};
+use plato_plugin_support::{SetupPlugin, command::run_command_with_timeout, run};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Default)]
@@ -18,7 +18,12 @@ impl SetupPlugin for PrecommitPlugin {
         let config: PrecommitConfig =
             serde_json::from_value(request.config).context("Invalid precommit plugin config")?;
         if config.install_hooks {
-            run_command("pre-commit", ["install"], &request.workdir)?;
+            run_command_with_timeout(
+                "pre-commit",
+                ["install"],
+                &request.workdir,
+                request.options.timeout(),
+            )?;
         }
         Ok(PluginSetupResponse::success("pre-commit setup complete"))
     }
@@ -33,5 +38,5 @@ fn metadata(name: &str, description: &str) -> PluginMetadata {
     }
 }
 fn main() -> std::process::ExitCode {
-    run(PrecommitPlugin)
+    run(&PrecommitPlugin)
 }

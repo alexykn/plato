@@ -1,6 +1,6 @@
 use anyhow::Context;
 use plato_plugin_api::{PluginCapability, PluginMetadata, PluginSetupRequest, PluginSetupResponse};
-use plato_plugin_support::{SetupPlugin, command::run_command, run};
+use plato_plugin_support::{SetupPlugin, command::run_command_with_timeout, run};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Default)]
@@ -24,7 +24,7 @@ impl SetupPlugin for PnpmPlugin {
             if config.frozen_lockfile {
                 args.push("--frozen-lockfile".to_string());
             }
-            run_command("pnpm", args, &request.workdir)?;
+            run_command_with_timeout("pnpm", args, &request.workdir, request.options.timeout())?;
         }
         Ok(PluginSetupResponse::success("pnpm setup complete"))
     }
@@ -39,5 +39,5 @@ fn metadata(name: &str, description: &str) -> PluginMetadata {
     }
 }
 fn main() -> std::process::ExitCode {
-    run(PnpmPlugin)
+    run(&PnpmPlugin)
 }

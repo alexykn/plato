@@ -1,21 +1,22 @@
 use anyhow::{Result, bail};
-use plato_plugin_support::command::run_command;
+use plato_plugin_support::command::run_command_with_timeout;
 use std::path::Path;
+use std::time::Duration;
 
 use crate::config::{CargoConfig, CargoScope, RustProjectType};
 
-pub(crate) fn setup(workdir: &Path, config: &CargoConfig) -> Result<()> {
+pub(crate) fn setup(workdir: &Path, config: &CargoConfig, timeout: Option<Duration>) -> Result<()> {
     validate(workdir, config)?;
-    ensure_toolchain(workdir, config)?;
-    add_components(workdir, config)?;
-    add_targets(workdir, config)?;
+    ensure_toolchain(workdir, config, timeout)?;
+    add_components(workdir, config, timeout)?;
+    add_targets(workdir, config, timeout)?;
     if config.cargo_init {
-        cargo_init(workdir, config)?;
+        cargo_init(workdir, config, timeout)?;
     }
     match config.scope {
         CargoScope::Base => Ok(()),
-        CargoScope::Fetch => cargo_command(workdir, config, "fetch"),
-        CargoScope::Build => cargo_command(workdir, config, "build"),
+        CargoScope::Fetch => cargo_command(workdir, config, "fetch", timeout),
+        CargoScope::Build => cargo_command(workdir, config, "build", timeout),
     }
 }
 
@@ -28,40 +29,41 @@ fn validate(workdir: &Path, config: &CargoConfig) -> Result<()> {
     Ok(())
 }
 
-fn ensure_toolchain(workdir: &Path, config: &CargoConfig) -> Result<()> {
-    run_command(
+fn ensure_toolchain(workdir: &Path, config: &CargoConfig, timeout: Option<Duration>) -> Result<()> {
+    run_command_with_timeout(
         "rustup",
         ["toolchain", "install", config.toolchain.as_str()],
         workdir,
+        timeout,
     )
 }
 
-fn add_components(workdir: &Path, config: &CargoConfig) -> Result<()> {
+fn add_components(workdir: &Path, config: &CargoConfig, timeout: Option<Duration>) -> Result<()> {
     if config.components.is_empty() {
         return Ok(());
     }
     let mut args = vec!["component".to_string(), "add".to_string()];
     args.extend(config.components.iter().cloned());
     args.extend(["--toolchain".to_string(), config.toolchain.clone()]);
-    run_command("rustup", args, workdir)
+    run_command_with_timeout("rustup", args, workdir, timeout)
 }
 
-fn add_targets(workdir: &Path, config: &CargoConfig) -> Result<()> {
+fn add_targets(workdir: &Path, config: &CargoConfig, timeout: Option<Duration>) -> Result<()> {
     if config.targets.is_empty() {
         return Ok(());
     }
     let mut args = vec!["target".to_string(), "add".to_string()];
     args.extend(config.targets.iter().cloned());
     args.extend(["--toolchain".to_string(), config.toolchain.clone()]);
-    run_command("rustup", args, workdir)
+    run_command_with_timeout("rustup", args, workdir, timeout)
 }
 
-fn cargo_init(workdir: &Path, config: &CargoConfig) -> Result<()> {
+fn cargo_init(workdir: &Path, config: &CargoConfig, timeout: Option<Duration>) -> Result<()> {
     let project_type = match config.project_type {
         RustProjectType::Binary => "--bin",
         RustProjectType::Library => "--lib",
     };
-    run_command(
+    run_command_with_timeout(
         "cargo",
         [
             format!("+{}", config.toolchain),
@@ -71,14 +73,21 @@ fn cargo_init(workdir: &Path, config: &CargoConfig) -> Result<()> {
             "none".to_string(),
         ],
         workdir,
+        timeout,
     )
 }
 
-fn cargo_command(workdir: &Path, config: &CargoConfig, command: &str) -> Result<()> {
-    run_command(
+fn cargo_command(
+    workdir: &Path,
+    config: &CargoConfig,
+    command: &str,
+    timeout: Option<Duration>,
+) -> Result<()> {
+    run_command_with_timeout(
         "cargo",
         [format!("+{}", config.toolchain), command.to_string()],
         workdir,
+        timeout,
     )
 }
 

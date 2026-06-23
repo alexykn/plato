@@ -21,11 +21,11 @@ impl SetupPlugin for CargoPlugin {
     fn setup(&self, request: PluginSetupRequest) -> anyhow::Result<PluginSetupResponse> {
         let config: config::CargoConfig =
             serde_json::from_value(request.config).context("Invalid cargo plugin config")?;
-        setup::setup(&request.workdir, &config)?;
+        setup::setup(&request.workdir, &config, request.options.timeout())?;
         Ok(PluginSetupResponse::success("cargo setup complete"))
     }
 }
 
 fn main() -> std::process::ExitCode {
-    run(CargoPlugin)
+    run(&CargoPlugin)
 }

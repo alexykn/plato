@@ -22,11 +22,11 @@ impl SetupPlugin for UvPlugin {
     fn setup(&self, request: PluginSetupRequest) -> anyhow::Result<PluginSetupResponse> {
         let config: config::UvConfig =
             serde_json::from_value(request.config).context("Invalid uv plugin config")?;
-        setup::setup(&request.workdir, &config)?;
+        setup::setup(&request.workdir, &config, request.options.timeout())?;
         Ok(PluginSetupResponse::success("uv setup complete"))
     }
 }
 
 fn main() -> std::process::ExitCode {
-    run(UvPlugin)
+    run(&UvPlugin)
 }

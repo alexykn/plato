@@ -101,6 +101,8 @@ Rust plugins can use:
 - `plato-plugin-api` for protocol types
 - `plato-plugin-support` for stdin/stdout runtime helpers and safe command execution
 
+Plugin setup receives `request.options.timeout_secs` when a setup step configures `timeout_secs`. Plato enforces that timeout at the plugin process boundary. Plugins using `plato-plugin-support::command::run_command_with_timeout` can also apply the same timeout to child commands they spawn. Plugin stdout is reserved for JSON protocol responses; command output forwarded by the support crate is written to stderr.
+
 Minimal shape:
 
 ```rust

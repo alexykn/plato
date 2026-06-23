@@ -1,10 +1,11 @@
 use anyhow::{Result, bail};
+use plato_plugin_support::command::run_command_with_timeout;
 use std::ffi::OsStr;
 use std::path::Path;
+use std::time::Duration;
 
 use crate::config::GitPluginConfig;
 use crate::config::{GitAutoCrlfConfig, GitAutoCrlfMode, GitEolConfig};
-use plato_plugin_support::command::run_command;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct GitSetupOptions<'a> {
@@ -97,12 +98,16 @@ impl From<GitEolConfig> for GitEol {
     }
 }
 
-pub(crate) fn run(target: &Path, config: &GitPluginConfig) -> Result<()> {
+pub(crate) fn run(
+    target: &Path,
+    config: &GitPluginConfig,
+    timeout: Option<Duration>,
+) -> Result<()> {
     if !config.init {
         return Ok(());
     }
 
-    setup_git_repository(
+    setup_git_repository_with_timeout(
         target,
         GitSetupOptions {
             initial_branch: config.initial_branch.as_deref(),
@@ -126,86 +131,126 @@ pub(crate) fn run(target: &Path, config: &GitPluginConfig) -> Result<()> {
                 message: &config.message,
             }),
         },
+        timeout,
     )
 }
 
+#[cfg(test)]
 pub(crate) fn setup_git_repository(target: &Path, options: GitSetupOptions<'_>) -> Result<()> {
+    setup_git_repository_with_timeout(target, options, None)
+}
+
+pub(crate) fn setup_git_repository_with_timeout(
+    target: &Path,
+    options: GitSetupOptions<'_>,
+    timeout: Option<Duration>,
+) -> Result<()> {
     validate_options(&options)?;
-    init_repository(target, options.initial_branch)?;
-    apply_local_config(target, &options.local_config)?;
+    init_repository(target, options.initial_branch, timeout)?;
+    apply_local_config(target, &options.local_config, timeout)?;
 
     if let Some(initial_commit) = options.initial_commit {
-        create_initial_commit(target, initial_commit)?;
+        create_initial_commit(target, initial_commit, timeout)?;
     }
 
     Ok(())
 }
 
-fn init_repository(target: &Path, initial_branch: Option<&str>) -> Result<()> {
+fn init_repository(
+    target: &Path,
+    initial_branch: Option<&str>,
+    timeout: Option<Duration>,
+) -> Result<()> {
     if let Some(initial_branch) = initial_branch {
-        return run_command("git", ["init", "--initial-branch", initial_branch], target);
+        return run_command_with_timeout(
+            "git",
+            ["init", "--initial-branch", initial_branch],
+            target,
+            timeout,
+        );
     }
 
-    run_command("git", ["init"], target)
+    run_command_with_timeout("git", ["init"], target, timeout)
 }
 
-fn apply_local_config(target: &Path, config: &GitLocalConfig<'_>) -> Result<()> {
-    apply_user_config(target, &config.user)?;
-    apply_commit_config(target, config.commit)?;
-    apply_core_config(target, &config.core)?;
+fn apply_local_config(
+    target: &Path,
+    config: &GitLocalConfig<'_>,
+    timeout: Option<Duration>,
+) -> Result<()> {
+    apply_user_config(target, &config.user, timeout)?;
+    apply_commit_config(target, config.commit, timeout)?;
+    apply_core_config(target, &config.core, timeout)?;
     Ok(())
 }
 
-fn apply_user_config(target: &Path, config: &GitUserConfig<'_>) -> Result<()> {
+fn apply_user_config(
+    target: &Path,
+    config: &GitUserConfig<'_>,
+    timeout: Option<Duration>,
+) -> Result<()> {
     if let Some(name) = config.name {
-        git_config(target, "user.name", name)?;
+        git_config(target, "user.name", name, timeout)?;
     }
 
     if let Some(email) = config.email {
-        git_config(target, "user.email", email)?;
+        git_config(target, "user.email", email, timeout)?;
     }
 
     if let Some(signing_key) = config.signing_key {
-        git_config(target, "user.signingkey", signing_key)?;
+        git_config(target, "user.signingkey", signing_key, timeout)?;
     }
 
     Ok(())
 }
 
-fn apply_commit_config(target: &Path, config: GitCommitLocalConfig) -> Result<()> {
+fn apply_commit_config(
+    target: &Path,
+    config: GitCommitLocalConfig,
+    timeout: Option<Duration>,
+) -> Result<()> {
     if let Some(gpgsign) = config.gpgsign {
-        git_config(target, "commit.gpgsign", git_bool(gpgsign))?;
+        git_config(target, "commit.gpgsign", git_bool(gpgsign), timeout)?;
     }
 
     Ok(())
 }
 
-fn apply_core_config(target: &Path, config: &GitCoreConfig<'_>) -> Result<()> {
+fn apply_core_config(
+    target: &Path,
+    config: &GitCoreConfig<'_>,
+    timeout: Option<Duration>,
+) -> Result<()> {
     if let Some(hooks_path) = config.hooks_path {
-        git_config_path(target, "core.hooksPath", hooks_path)?;
+        git_config_path(target, "core.hooksPath", hooks_path, timeout)?;
     }
 
     if let Some(autocrlf) = config.autocrlf {
-        git_config(target, "core.autocrlf", autocrlf.as_git_value())?;
+        git_config(target, "core.autocrlf", autocrlf.as_git_value(), timeout)?;
     }
 
     if let Some(eol) = config.eol {
-        git_config(target, "core.eol", eol.as_git_value())?;
+        git_config(target, "core.eol", eol.as_git_value(), timeout)?;
     }
 
     if let Some(filemode) = config.filemode {
-        git_config(target, "core.filemode", git_bool(filemode))?;
+        git_config(target, "core.filemode", git_bool(filemode), timeout)?;
     }
 
     Ok(())
 }
 
-fn create_initial_commit(target: &Path, initial_commit: GitInitialCommit<'_>) -> Result<()> {
-    run_command("git", ["add", "--all"], target)?;
-    run_command(
+fn create_initial_commit(
+    target: &Path,
+    initial_commit: GitInitialCommit<'_>,
+    timeout: Option<Duration>,
+) -> Result<()> {
+    run_command_with_timeout("git", ["add", "--all"], target, timeout)?;
+    run_command_with_timeout(
         "git",
         ["commit", "--message", initial_commit.message],
         target,
+        timeout,
     )
 }
 
@@ -238,15 +283,21 @@ fn ensure_non_empty(value: &str, field: &str) -> Result<()> {
     Ok(())
 }
 
-fn git_config(target: &Path, key: &str, value: &str) -> Result<()> {
-    run_command("git", ["config", key, value], target)
+fn git_config(target: &Path, key: &str, value: &str, timeout: Option<Duration>) -> Result<()> {
+    run_command_with_timeout("git", ["config", key, value], target, timeout)
 }
 
-fn git_config_path(target: &Path, key: &str, value: &Path) -> Result<()> {
-    run_command(
+fn git_config_path(
+    target: &Path,
+    key: &str,
+    value: &Path,
+    timeout: Option<Duration>,
+) -> Result<()> {
+    run_command_with_timeout(
         "git",
         [OsStr::new("config"), OsStr::new(key), value.as_os_str()],
         target,
+        timeout,
     )
 }
 

@@ -7,10 +7,15 @@ use std::process::ExitCode;
 
 pub trait SetupPlugin {
     fn metadata(&self) -> PluginMetadata;
+
+    /// Runs plugin setup.
+    ///
+    /// # Errors
+    /// Returns an error when the plugin cannot complete setup for the supplied request.
     fn setup(&self, request: PluginSetupRequest) -> Result<PluginSetupResponse>;
 }
 
-pub fn run<P: SetupPlugin>(plugin: P) -> ExitCode {
+pub fn run<P: SetupPlugin>(plugin: &P) -> ExitCode {
     match run_inner(plugin) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
@@ -20,7 +25,7 @@ pub fn run<P: SetupPlugin>(plugin: P) -> ExitCode {
     }
 }
 
-fn run_inner<P: SetupPlugin>(plugin: P) -> Result<()> {
+fn run_inner<P: SetupPlugin>(plugin: &P) -> Result<()> {
     let command = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "metadata".to_string());

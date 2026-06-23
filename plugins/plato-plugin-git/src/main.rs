@@ -21,11 +21,11 @@ impl SetupPlugin for GitPlugin {
     fn setup(&self, request: PluginSetupRequest) -> anyhow::Result<PluginSetupResponse> {
         let config: config::GitPluginConfig =
             serde_json::from_value(request.config).context("Invalid git plugin config")?;
-        setup::run(&request.workdir, &config)?;
+        setup::run(&request.workdir, &config, request.options.timeout())?;
         Ok(PluginSetupResponse::success("git setup complete"))
     }
 }
 
 fn main() -> std::process::ExitCode {
-    run(GitPlugin)
+    run(&GitPlugin)
 }

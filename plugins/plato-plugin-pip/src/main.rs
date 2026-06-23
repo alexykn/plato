@@ -22,11 +22,11 @@ impl SetupPlugin for PipPlugin {
     fn setup(&self, request: PluginSetupRequest) -> anyhow::Result<PluginSetupResponse> {
         let config: config::PipConfig =
             serde_json::from_value(request.config).context("Invalid pip plugin config")?;
-        setup::setup(&request.workdir, &config)?;
+        setup::setup(&request.workdir, &config, request.options.timeout())?;
         Ok(PluginSetupResponse::success("pip setup complete"))
     }
 }
 
 fn main() -> std::process::ExitCode {
-    run(PipPlugin)
+    run(&PipPlugin)
 }

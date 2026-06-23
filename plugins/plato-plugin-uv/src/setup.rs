@@ -1,13 +1,19 @@
 use anyhow::{Result, bail};
-use plato_plugin_support::command::run_command;
+use plato_plugin_support::command::run_command_with_timeout;
 use std::path::Path;
+use std::time::Duration;
 
 use crate::config::{PythonScope, UvConfig, UvSetup};
 use crate::pyproject::{editable_install_target, ensure_readme, get_or_create_requirements_file};
 
-pub(crate) fn setup(workdir: &Path, config: &UvConfig) -> Result<()> {
+pub(crate) fn setup(workdir: &Path, config: &UvConfig, timeout: Option<Duration>) -> Result<()> {
     validate(config)?;
-    run_command("uv", ["venv", "--python", config.python.as_str()], workdir)?;
+    run_command_with_timeout(
+        "uv",
+        ["venv", "--python", config.python.as_str()],
+        workdir,
+        timeout,
+    )?;
 
     match (config.scope, config.setup) {
         (PythonScope::Base, _) => Ok(()),
@@ -15,29 +21,31 @@ pub(crate) fn setup(workdir: &Path, config: &UvConfig) -> Result<()> {
             ensure_readme(workdir)?;
             let mut args = vec!["sync".to_string()];
             extend_uv_sync_args(&mut args, config, false);
-            run_command("uv", args, workdir)
+            run_command_with_timeout("uv", args, workdir, timeout)
         }
         (PythonScope::Install, UvSetup::Editable) => {
             ensure_readme(workdir)?;
             let editable_target = editable_install_target(&config.extras);
-            run_command(
+            run_command_with_timeout(
                 "uv",
                 ["pip", "install", "-e", editable_target.as_str()],
                 workdir,
+                timeout,
             )
         }
         (PythonScope::Requirements, UvSetup::Sync) => {
             let mut args = vec!["sync".to_string(), "--no-install-project".to_string()];
             extend_uv_sync_args(&mut args, config, false);
-            run_command("uv", args, workdir)
+            run_command_with_timeout("uv", args, workdir, timeout)
         }
         (PythonScope::Requirements, UvSetup::Editable) => {
             let requirements = get_or_create_requirements_file(workdir)?;
             let requirements = requirements.to_string_lossy().to_string();
-            run_command(
+            run_command_with_timeout(
                 "uv",
                 ["pip", "install", "-r", requirements.as_str()],
                 workdir,
+                timeout,
             )
         }
     }
